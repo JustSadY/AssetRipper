@@ -1,5 +1,6 @@
 ﻿using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.IO.Files.Streams.Smart;
+using AssetRipper.IO.Files.Exceptions;
 using System.IO.Compression;
 
 namespace AssetRipper.IO.Files.CompressedFiles.Brotli;
@@ -15,7 +16,7 @@ public sealed class BrotliFile : CompressedFile
 			byte[] buffer = ReadBrotli(stream);
 			UncompressedFile = new ResourceFile(buffer, FilePath, Name);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 		{
 			UncompressedFile = new FailedFile()
 			{

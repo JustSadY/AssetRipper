@@ -7,7 +7,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// ILSpy needs System.Runtime.CompilerServices.Unsafe and System.Runtime.InteropServices to decompile some code.
 /// This generates these assemblies with forwarders to the mscorlib types.
 /// </summary>
-public sealed class ForwardingAssemblyGenerator : IAssetProcessor
+public sealed class ForwardingAssemblyGenerator : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => AddCompilerHelperModules(gameData.AssemblyManager);
 

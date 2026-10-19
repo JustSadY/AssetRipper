@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Export.Configuration;
 using AssetRipper.GUI.Web.Pages.Settings.DropDown;
 using AssetRipper.GUI.Web.Paths;
+using AssetRipper.Import.Configuration;
 using AssetRipper.Primitives;
 using Microsoft.AspNetCore.Http;
 
@@ -65,6 +66,7 @@ public sealed partial class SettingsPage : DefaultPage
 								using (new Div(writer).WithClass("col").End())
 								{
 									WriteTextAreaForDefaultVersion(writer);
+									WriteRawRecoveryDirectory(writer);
 								}
 							}
 
@@ -213,6 +215,19 @@ public sealed partial class SettingsPage : DefaultPage
 			.WithName(nameof(Configuration.ImportSettings.DefaultVersion))
 			.WithValue(Configuration.ImportSettings.DefaultVersion.ToString())
 			.Close();
+	}
+
+	private static void WriteRawRecoveryDirectory(TextWriter writer)
+	{
+		new Label(writer).WithClass("form-label").WithFor(nameof(ImportSettings.RawRecoveryDirectory)).Close(Localization.RawRecoveryDirectory);
+		new Input(writer)
+			.WithType("text")
+			.WithClass("form-control")
+			.WithId(nameof(ImportSettings.RawRecoveryDirectory))
+			.WithName(nameof(ImportSettings.RawRecoveryDirectory))
+			.WithValue(Configuration.ImportSettings.RawRecoveryDirectory ?? string.Empty)
+			.Close();
+		new P(writer).WithClass("form-text").Close(Localization.RawRecoveryDirectoryDescription);
 	}
 
 	private static void WriteTextAreaForTargetVersion(TextWriter writer)

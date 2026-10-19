@@ -1,13 +1,18 @@
 ﻿using AssetRipper.Assets;
 using AssetRipper.Assets.Bundles;
+using AssetRipper.Export.Collections;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.SourceGenerated;
 
 namespace AssetRipper.Export.UnityProjects;
 
 public sealed partial class ProjectExporter
 {
+	public bool? LastExportSucceeded { get; private set; }
+	public CollectionExportReport? LastReport { get; private set; }
+
 	public event Action? EventExportPreparationStarted;
 	public event Action? EventExportPreparationFinished;
 	public event Action? EventExportStarted;
@@ -74,49 +79,87 @@ public sealed partial class ProjectExporter
 
 	public void Export(GameBundle fileCollection, CoreConfiguration options, FileSystem fileSystem)
 	{
+		LastExportSucceeded = false;
+		CollectionExportReport report = LastReport = CollectionExportReport.Create("UnityProject", fileCollection);
 		EventExportPreparationStarted?.Invoke();
-		List<IExportCollection> collections = CreateCollections(fileCollection);
+		List<PreparedExportCollection> collections = CreateCollections(fileCollection, report);
+		report.Write(options.ExportRootPath, fileSystem);
 		EventExportPreparationFinished?.Invoke();
 
 		EventExportStarted?.Invoke();
-		ProjectAssetContainer container = new ProjectAssetContainer(this, options, fileCollection.FetchAssets(), collections);
+		ProjectAssetContainer container = new(this, options, fileCollection.FetchAssets(),
+			collections.Select(c => (c.Collection, (IEnumerable<IUnityObjectBase>)c.Assets)).ToArray());
 		int exportableCount = collections.Count(c => c.Exportable);
 		int currentExportable = 0;
 
 		for (int i = 0; i < collections.Count; i++)
 		{
-			IExportCollection collection = collections[i];
+			PreparedExportCollection prepared = collections[i];
+			IExportCollection collection = prepared.Collection;
 			container.CurrentCollection = collection;
-			if (collection.Exportable)
+			if (prepared.Exportable)
 			{
 				currentExportable++;
-				Logger.Info(LogCategory.ExportProgress, $"({currentExportable}/{exportableCount}) Exporting '{collection.Name}'");
-				bool exportedSuccessfully = collection.Export(container, options.ProjectRootPath, fileSystem);
-				if (!exportedSuccessfully)
+				report.AttemptedCollectionCount++;
+				int failuresBefore = report.Failures.Count;
+				Logger.Info(LogCategory.ExportProgress, $"({currentExportable}/{exportableCount}) Exporting '{prepared.Name}'");
+				try
 				{
-					Logger.Warning(LogCategory.ExportProgress, $"Failed to export '{collection.Name}' ({collection.GetType().Name})");
+					if (collection.Export(container, options.ProjectRootPath, fileSystem))
+					{
+						report.ExportedCollectionCount++;
+					}
+					else
+					{
+						report.AddFailure("Export", prepared.Name, prepared.Seed);
+						Logger.Warning(LogCategory.ExportProgress, $"Failed to export '{prepared.Name}' ({collection.GetType().Name})");
+					}
+				}
+				catch (Exception exception) when (ExceptionPolicy.IsRecoverable(exception))
+				{
+					report.AddFailure("Export", prepared.Name, prepared.Seed, exception);
+					Logger.Error(LogCategory.Export, $"Failed to export '{prepared.Name}'. Continuing with independent collections.", exception);
+				}
+				if (report.Failures.Count != failuresBefore)
+				{
+					report.Write(options.ExportRootPath, fileSystem);
 				}
 			}
 			EventExportProgressUpdated?.Invoke(i, collections.Count);
 		}
+		report.Completed = true;
+		report.Write(options.ExportRootPath, fileSystem);
+		LastExportSucceeded = report.Succeeded;
 		EventExportFinished?.Invoke();
 	}
 
-	private List<IExportCollection> CreateCollections(GameBundle fileCollection)
+	private List<PreparedExportCollection> CreateCollections(GameBundle fileCollection, CollectionExportReport report)
 	{
-		List<IExportCollection> collections = new();
+		List<PreparedExportCollection> collections = new();
 		HashSet<IUnityObjectBase> queued = new();
 
 		foreach (IUnityObjectBase asset in fileCollection.FetchAssets())
 		{
 			if (!queued.Contains(asset))
 			{
-				IExportCollection collection = CreateCollection(asset);
-				foreach (IUnityObjectBase element in collection.Assets)
+				try
 				{
-					queued.Add(element);
+					IExportCollection collection = CreateCollection(asset);
+					IUnityObjectBase[] members = collection.Assets.ToArray();
+					if (members.Distinct().Count() != members.Length || members.Any(queued.Contains))
+					{
+						throw new InvalidOperationException("The export collection contains duplicate or already queued assets.");
+					}
+					PreparedExportCollection prepared = new(collection, asset, members, collection.Name, collection.Exportable);
+					collections.Add(prepared);
+					queued.UnionWith(members);
 				}
-				collections.Add(collection);
+				catch (Exception exception) when (ExceptionPolicy.IsRecoverable(exception))
+				{
+					report.AddFailure("Preparation", asset.ClassName, asset, exception);
+					Logger.Error(LogCategory.Export, $"Failed to prepare {asset.ClassName} ({asset.PathID}) in '{asset.Collection.Name}'.", exception);
+				}
+				queued.Add(asset);
 			}
 		}
 

@@ -157,7 +157,7 @@ public sealed class FileStreamBundleFile : FileContainer
 				SmartStream entryStream = blockReader.ReadEntry(entry);
 				AddResourceFile(new ResourceFile(entryStream, FilePath, entry.Path));
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 			{
 				AddFailedFile(new FailedFile()
 				{

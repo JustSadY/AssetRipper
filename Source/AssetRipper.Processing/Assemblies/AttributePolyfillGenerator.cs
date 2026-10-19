@@ -14,7 +14,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <remarks>
 /// <see href="https://github.com/icsharpcode/ILSpy/blob/master/ICSharpCode.Decompiler/TypeSystem/Implementation/KnownAttributes.cs"/>
 /// </remarks>
-public sealed class AttributePolyfillGenerator : IAssetProcessor
+public sealed class AttributePolyfillGenerator : IAssemblyProcessor
 {
 	/// <summary>
 	/// Injects generated attribute polyfills into the loaded game data.

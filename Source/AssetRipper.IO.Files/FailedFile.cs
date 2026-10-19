@@ -4,6 +4,8 @@ namespace AssetRipper.IO.Files;
 
 public class FailedFile : FileBase
 {
+	public string Stage { get; set; } = "ReadFile";
+	public int? DeclaredObjectCount { get; set; }
 	public string StackTrace { get; set; } = "";
 
 	public override void Read(SmartStream stream)

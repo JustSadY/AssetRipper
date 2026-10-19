@@ -12,7 +12,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// Mono doesn't always include properties for explicit interface implementations, so we have to create them ourselves.
 /// <see href="https://github.com/AssetRipper/AssetRipper/issues/1682"/>
 /// </remarks>
-public sealed class MonoExplicitPropertyRepairProcessor : IAssetProcessor
+public sealed class MonoExplicitPropertyRepairProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)

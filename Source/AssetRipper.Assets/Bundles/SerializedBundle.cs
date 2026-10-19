@@ -25,7 +25,7 @@ public sealed class SerializedBundle : Bundle
 		}
 		foreach (SerializedFile serializedFile in container.SerializedFiles)
 		{
-			bundle.AddCollectionFromSerializedFile(serializedFile, factory, defaultVersion);
+			bundle.TryAddCollectionFromSerializedFile(serializedFile, factory, defaultVersion);
 		}
 		foreach (FileContainer childContainer in container.FileLists)
 		{

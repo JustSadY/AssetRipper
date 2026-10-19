@@ -7,6 +7,7 @@ namespace AssetRipper.Export.Scripts;
 public class ILSpyWholeProjectDecompiler : WholeProjectDecompiler
 {
 	protected FileSystem FileSystem { get; }
+	private readonly object fileSystemSync = new();
 
 	public ILSpyWholeProjectDecompiler(DecompilerSettings settings, ILSpyAssemblyResolver assemblyResolver, IProjectFileWriter projectFileWriter, FileSystem fileSystem)
 		: base(settings, Guid.NewGuid(), assemblyResolver, projectFileWriter, NullAssemblyReferenceClassifier.Instance, null)
@@ -16,20 +17,26 @@ public class ILSpyWholeProjectDecompiler : WholeProjectDecompiler
 
 	protected override void CreateDirectory(string path)
 	{
-		try
+		lock (fileSystemSync)
 		{
-			FileSystem.Directory.Create(path);
-		}
-		catch (IOException)
-		{
-			FileSystem.File.Delete(path);
-			FileSystem.Directory.Create(path);
+			try
+			{
+				FileSystem.Directory.Create(path);
+			}
+			catch (IOException)
+			{
+				FileSystem.File.Delete(path);
+				FileSystem.Directory.Create(path);
+			}
 		}
 	}
 
 	protected override TextWriter CreateFile(string path)
 	{
-		Stream stream = FileSystem.File.Create(path);
-		return new StreamWriter(stream);
+		lock (fileSystemSync)
+		{
+			Stream stream = FileSystem.File.Create(path);
+			return new StreamWriter(stream);
+		}
 	}
 }

@@ -6,6 +6,7 @@ namespace AssetRipper.Export.PrimaryContent.Scripts;
 
 internal sealed class ProjectFileWriter : ProjectFileWriterSdkStyle
 {
+	public const string ScaffoldFramework = "net10.0";
 	const string TrueString = "True";
 	const string FalseString = "False";
 
@@ -14,7 +15,7 @@ internal sealed class ProjectFileWriter : ProjectFileWriterSdkStyle
 	protected override string GetTargetFrameworkMoniker(MetadataFile module, IProjectInfoProvider project)
 	{
 		// We need to define a target framework for the project, even though the assembly won't actually target the reference assemblies for that framework.
-		return "net10.0";
+		return ScaffoldFramework;
 	}
 
 	protected override IEnumerable<AssemblyReference> GetReferences(MetadataFile module, IProjectInfoProvider project)
@@ -32,7 +33,7 @@ internal sealed class ProjectFileWriter : ProjectFileWriterSdkStyle
 	protected override IEnumerable<(string, string)> GetCustomProperties(IProjectInfoProvider project, IEnumerable<ProjectItemInfo> files, MetadataFile module)
 	{
 		// We need to define a target framework for the project, even though the assembly won't actually target the reference assemblies for that framework.
-		yield return ("TargetFramework", "net10.0");
+		yield return ("TargetFramework", ScaffoldFramework);
 
 		// https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/compiler-options/advanced#nostandardlib
 		yield return ("NoStandardLib", TrueString);

@@ -12,7 +12,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <remarks>
 /// <see href="https://github.com/AssetRipper/AssetRipper/issues/1736"/>
 /// </remarks>
-public sealed partial class InternalsVisibileToPublicKeyRemover : IAssetProcessor
+public sealed partial class InternalsVisibileToPublicKeyRemover : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)

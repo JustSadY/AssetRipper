@@ -1,4 +1,5 @@
 using AssetRipper.IO.Files.CompressedFiles;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.IO.Files.SerializedFiles;
 
@@ -112,7 +113,15 @@ public abstract class FileContainer : FileBase
 			m_resourceFiles.Clear();
 			for (int i = 0; i < resourceFiles.Length; i++)
 			{
-				AddFile(SchemeReader.ReadFile(resourceFiles[i]));
+				ResourceFile resource = resourceFiles[i];
+				try
+				{
+					AddFile(SchemeReader.ReadFile(resource));
+				}
+				catch (Exception exception) when (ExceptionPolicy.IsRecoverableInput(exception))
+				{
+					AddFailedFile(new() { Name = resource.Name, FilePath = resource.FilePath, StackTrace = exception.ToString() });
+				}
 			}
 		}
 	}

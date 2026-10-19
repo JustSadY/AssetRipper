@@ -1,8 +1,11 @@
 ﻿using AssetRipper.Assets.Bundles;
 using AssetRipper.Assets.IO;
+using AssetRipper.Assets.IO.Recovery;
 using AssetRipper.Assets.Metadata;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
+using System.Runtime.ExceptionServices;
 
 namespace AssetRipper.Assets.Collections;
 
@@ -56,33 +59,67 @@ public sealed class SerializedAssetCollection : AssetCollection
 		SerializedAssetCollection collection = new SerializedAssetCollection(bundle)
 		{
 			Name = file.NameFixed,
+			FilePath = file.FilePath,
 			Version = version,
 			OriginalVersion = version,
 			Platform = file.Platform,
 			Flags = file.Flags,
 			EndianType = file.EndianType,
 		};
-		ReadOnlySpan<FileIdentifier> fileDependencies = file.Dependencies;
-		if (fileDependencies.Length > 0)
+		try
 		{
-			collection.DependencyIdentifiers = fileDependencies.ToArray();
+			ReadOnlySpan<FileIdentifier> fileDependencies = file.Dependencies;
+			if (fileDependencies.Length > 0)
+			{
+				collection.DependencyIdentifiers = fileDependencies.ToArray();
+			}
+			ReadData(collection, file, factory);
 		}
-		ReadData(collection, file, factory);
+		catch
+		{
+			// Dependency binding has not started. Do not expose a half-populated collection.
+			bundle.RemoveFailedCollection(collection);
+			throw;
+		}
 		return collection;
 	}
 
 	private static void ReadData(SerializedAssetCollection collection, SerializedFile file, AssetFactoryBase factory)
 	{
 		SerializedTypeReference[] referenceTypes = file.RefTypes.ToArray();
+		IRawObjectCollection? rawCollection = factory.RawObjectSink?.BeginCollection(new(
+			file.FilePath, file.Name, file.NameFixed, collection.Bundle.Name, collection.OriginalVersion.ToString(),
+			(int)file.Generation, (int)file.Platform, file.EndianType.ToString(), file.HasTypeTree));
+		Exception? readFailure = null;
 		foreach (ObjectInfo objectInfo in file.Objects)
 		{
 			int classID = objectInfo.TypeID < 0 ? 114 : objectInfo.TypeID;
 			AssetInfo assetInfo = new AssetInfo(collection, objectInfo.FileID, classID);
-			IUnityObjectBase? asset = factory.ReadAsset(assetInfo, objectInfo.ObjectData, objectInfo.Type, referenceTypes);
-			if (asset is not null)
+			IRawObjectSnapshot? snapshot = rawCollection?.Preserve(new(
+				objectInfo.FileID, classID, objectInfo.TypeID, objectInfo.SerializedTypeIndex, objectInfo.ScriptTypeIndex,
+				objectInfo.ByteOffset, objectInfo.DeclaredByteSize), objectInfo.ObjectData);
+			if (readFailure is not null)
 			{
-				collection.AddAsset(asset);
+				snapshot?.ReportReadStatus(RawObjectReadStatus.CollectionAborted, "Factory parsing stopped after an earlier object failed in this collection.");
+				continue;
 			}
+			try
+			{
+				IUnityObjectBase? asset = factory.ReadAsset(assetInfo, objectInfo.ObjectData, objectInfo.Type, referenceTypes, snapshot);
+				if (asset is not null)
+				{
+					collection.AddAsset(asset);
+				}
+			}
+			catch (Exception exception) when (ExceptionPolicy.IsRecoverableInput(exception))
+			{
+				snapshot?.ReportReadStatus(RawObjectReadStatus.FactoryException, exception.ToString());
+				readFailure = exception;
+			}
+		}
+		if (readFailure is not null)
+		{
+			ExceptionDispatchInfo.Capture(readFailure).Throw();
 		}
 	}
 }

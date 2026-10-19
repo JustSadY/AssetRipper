@@ -6,7 +6,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <summary>
 /// This processor removes nullable annotations from all locations.
 /// </summary>
-public sealed class NullableRemovalProcessor : IAssetProcessor
+public sealed class NullableRemovalProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 

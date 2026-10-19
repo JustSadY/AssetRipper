@@ -3,6 +3,7 @@ using AssetRipper.Import.AssetCreation;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Platforms;
+using AssetRipper.Import.Recovery;
 using AssetRipper.Import.Structure.Assembly;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.Import.Structure.Platforms;
@@ -18,11 +19,18 @@ public sealed class GameStructure : IDisposable
 	public PlatformGameStructure? MixedStructure { get; private set; }
 	public IAssemblyManager AssemblyManager { get; set; }
 	public FileSystem FileSystem { get; }
+	public RawObjectStore? RawRecovery { get; }
+	private readonly HashSet<ResourceFile> loadedAssemblyResources = new(ReferenceEqualityComparer.Instance);
 
 	private GameStructure(List<string> paths, FileSystem fileSystem, CoreConfiguration configuration)
 	{
 		Logger.SendStatusChange("loading_step_detect_platform");
 		FileSystem = fileSystem;
+		if (!string.IsNullOrWhiteSpace(configuration.ImportSettings.RawRecoveryDirectory))
+		{
+			RawRecovery = new(fileSystem, configuration.ImportSettings.RawRecoveryDirectory);
+			Logger.Info(LogCategory.Import, $"Preserving raw serialized objects in {RawRecovery.DirectoryPath}");
+		}
 		PlatformChecker.CheckPlatform(paths, fileSystem, out PlatformGameStructure? platformStructure, out MixedGameStructure? mixedStructure);
 		PlatformStructure = platformStructure;
 		PlatformStructure?.CollectFiles(configuration.ImportSettings.IgnoreStreamingAssets);
@@ -38,6 +46,11 @@ public sealed class GameStructure : IDisposable
 		Logger.SendStatusChange("loading_step_begin_scheme_processing");
 
 		InitializeGameCollection(configuration.ImportSettings.DefaultVersion, configuration.ImportSettings.TargetVersion);
+		foreach (FailedFile file in FileCollection.FetchFailedFiles())
+		{
+			Logger.Error(LogCategory.Import, $"Failed to load '{file.Name}' during {file.Stage}.{Environment.NewLine}{file.StackTrace}");
+		}
+		RawRecovery?.WriteSummary("Imported");
 
 		if (!FileCollection.HasAnyAssetCollections())
 		{
@@ -65,7 +78,7 @@ public sealed class GameStructure : IDisposable
 	{
 		Logger.SendStatusChange("loading_step_create_file_collection");
 
-		GameAssetFactory assetFactory = new GameAssetFactory(AssemblyManager);
+		GameAssetFactory assetFactory = new GameAssetFactory(AssemblyManager) { RawObjectSink = RawRecovery };
 
 		IEnumerable<string> filePaths;
 		if (PlatformStructure is null || MixedStructure is null)
@@ -141,23 +154,25 @@ public sealed class GameStructure : IDisposable
 	private void OnRequestAssembly(string assembly)
 	{
 		string assemblyName = $"{assembly}.dll";
-		ResourceFile? resFile = FileCollection.ResolveResource(assemblyName);
-		if (resFile is not null)
+		HashSet<string> loaded = AssemblyManager.GetAssemblies().Select(a => AssemblyManager.GetSourceInfo(a)?.SourcePath ?? "").ToHashSet(StringComparer.Ordinal);
+		bool found = false;
+		foreach (ResourceFile resFile in FileCollection.FetchResourceFiles().Where(r => r.NameFixed.Equals(assemblyName, StringComparison.OrdinalIgnoreCase)))
 		{
+			string origin = resFile.FilePath + "/" + resFile.Name;
+			if (!loadedAssemblyResources.Add(resFile)) continue;
 			resFile.Stream.Position = 0;
-			AssemblyManager.Read(resFile.Stream.CreateReference(), assemblyName);
+			AssemblyManager.Read(resFile.Stream.CreateReference(), origin);
+			found = true;
 		}
-		else
+		IEnumerable<KeyValuePair<string, string>> candidates = (PlatformStructure?.AssemblyCandidates ?? []).Concat(MixedStructure?.AssemblyCandidates ?? []);
+		foreach ((string name, string path) in candidates)
 		{
-			string? path = PlatformStructure?.RequestAssembly(assembly) ?? MixedStructure?.RequestAssembly(assembly);
-			if (path is null)
-			{
-				Logger.Log(LogType.Warning, LogCategory.Import, $"Assembly '{assembly}' hasn't been found");
-				return;
-			}
+			if (!name.Equals(assemblyName, StringComparison.OrdinalIgnoreCase) || !loaded.Add(path)) continue;
 			AssemblyManager.Load(path, FileSystem);
+			found = true;
 		}
-		Logger.Info(LogCategory.Import, $"Assembly '{assembly}' has been loaded");
+		if (found) Logger.Info(LogCategory.Import, $"Assembly candidates for '{assembly}' have been loaded");
+		else Logger.Warning(LogCategory.Import, $"Assembly '{assembly}' hasn't been found");
 	}
 
 	public void Dispose()

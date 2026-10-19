@@ -1,125 +1,81 @@
-﻿using AsmResolver.DotNet;
+using AsmResolver.DotNet;
 using AssetRipper.Import.Logging;
+using AssetRipper.Import.Structure.Assembly;
 using AssetRipper.Import.Structure.Assembly.Managers;
-using AssetRipper.Processing.Assemblies;
 using ICSharpCode.Decompiler.Metadata;
-using System.Collections.Concurrent;
 using IAssemblyResolver = ICSharpCode.Decompiler.Metadata.IAssemblyResolver;
 
 namespace AssetRipper.Export.Scripts;
 
 public sealed class ILSpyAssemblyResolver(IAssemblyManager manager) : IAssemblyResolver
 {
-	/// <remarks>
-	/// In <see cref="ICSharpCode.Decompiler.TypeSystem.DecompilerTypeSystem"/>, it states:<br /><br />
-	///   For .NET Core and .NET 5 and newer, we need to pull in implicit references which are not included in the metadata,<br />
-	///   as they contain compile-time-only types, such as System.Runtime.InteropServices.dll (for DllImport, MarshalAs, etc.)<br /><br />
-	/// As a result, it tries to load these assemblies:<br />
-	///  * System.Runtime.InteropServices<br />
-	///  * System.Runtime.CompilerServices.Unsafe<br /><br />
-	/// Current solution:<br />
-	///  * The types from these assemblies always seem to be included in mscorlib, we currently use a <see cref="ForwardingAssemblyGenerator"/>
-	///    to enable these types to be resolved.
-	/// </remarks>
-	private readonly ConcurrentDictionary<string, PEFile> peAssemblies = new();
+	private readonly Dictionary<AssemblyDefinition, PEFile> peAssemblies = new(ReferenceEqualityComparer.Instance);
+	private readonly List<AssemblyResolutionDiagnostic> diagnostics = [];
+	public IReadOnlyList<AssemblyResolutionDiagnostic> Diagnostics { get { lock (peAssemblies) return diagnostics.ToArray(); } }
 
 	public MetadataFile? Resolve(IAssemblyReference reference)
 	{
-		return ResolveAssembly(reference.Name);
+		lock (peAssemblies)
+		{
+			AssemblyIdentity identity = new(reference.Name, reference.Version, reference.Culture, reference.PublicKeyToken);
+			// ILSpy 11 injects these AssemblyNameReference probes without a public key token.
+			// They are optional, not references read from the PE metadata. Do not invent a
+			// publisher match or report a signed candidate as a failed required dependency.
+			if (IsImplicitFrameworkProbe(reference) && !manager.GetAssemblyCandidates(identity.Name).Any(a => AssemblyIdentity.From(a) == identity))
+			{
+				Report(new("ImplicitFrameworkProbeUnresolved", identity.ToString(), false,
+					AssemblyResolution.Describe(manager, manager.GetAssemblyCandidates(identity.Name))));
+				return null;
+			}
+			AssemblyDefinition? assembly = AssemblyResolution.Resolve(manager, identity, true, Report);
+			return assembly is null ? null : Resolve(assembly);
+		}
 	}
 
+	/// <summary>Resolve this exact physical candidate, even if its CLR identity is duplicated.</summary>
 	public PEFile Resolve(AssemblyDefinition assembly)
 	{
-		return ResolveAssembly(assembly.Name!)!;
+		lock (peAssemblies)
+		{
+			if (!peAssemblies.TryGetValue(assembly, out PEFile? result))
+			{
+				Stream stream = manager.GetStreamForAssembly(assembly);
+				stream.Position = 0;
+				result = new PEFile(assembly.Name ?? "", stream);
+				peAssemblies.Add(assembly, result);
+			}
+			return result;
+		}
 	}
 
-	public Task<MetadataFile?> ResolveAsync(IAssemblyReference reference)
-	{
-		return Task.Run(() => Resolve(reference));
-	}
+	public Task<MetadataFile?> ResolveAsync(IAssemblyReference reference) => Task.FromResult(Resolve(reference));
 
-	/// <summary>
-	/// Finds a module in the same directory as another
-	/// </summary>
-	/// <param name="mainModule"></param>
-	/// <param name="moduleName"></param>
-	/// <returns></returns>
+	private static bool IsImplicitFrameworkProbe(IAssemblyReference reference) => reference is AssemblyNameReference
+		&& reference.Name is "System.Runtime.InteropServices" or "System.Runtime.CompilerServices.Unsafe"
+		&& string.IsNullOrEmpty(reference.Culture) && (reference.PublicKeyToken is null || reference.PublicKeyToken.Length == 0);
+
 	public MetadataFile? ResolveModule(MetadataFile mainModule, string moduleName)
 	{
-		return ResolveModule(moduleName);
-	}
-
-	public Task<MetadataFile?> ResolveModuleAsync(MetadataFile mainModule, string moduleName)
-	{
-		return Task.Run(() => ResolveModule(mainModule, moduleName));
-	}
-
-	private PEFile? ResolveAssembly(string referenceName)
-	{
-		if (peAssemblies.TryGetValue(referenceName, out PEFile? peResult))
+		lock (peAssemblies)
 		{
-			return peResult;
-		}
-		else
-		{
-			lock (peAssemblies)
-			{
-				if (peAssemblies.TryGetValue(referenceName, out peResult))
-				{
-					return peResult;
-				}
-
-				AssemblyDefinition? assembly = manager.GetAssemblies().FirstOrDefault(x => x.Name == referenceName);
-				if (assembly is not null)
-				{
-					Stream stream = manager.GetStreamForAssembly(assembly);
-					stream.Position = 0;
-					string assemblyName = assembly.Name!;
-					peResult = new PEFile(assemblyName, stream);
-					if (!peAssemblies.TryAdd(assemblyName, peResult))
-					{
-						throw new Exception($"Could not add pe assembly: {assemblyName} to name dictionary!");
-					}
-					return peResult;
-				}
-			}
-
-			Logger.Warning(LogCategory.Export, $"Could not resolve assembly: {referenceName}");
+			AssemblyDefinition? owner = peAssemblies.FirstOrDefault(p => ReferenceEquals(p.Value, mainModule)).Key;
+			if (owner?.ManifestModule?.Name == moduleName) return Resolve(owner);
+			// Assembly streams contain the manifest module, not arbitrary netmodule payloads.
+			AssemblyDefinition[] matches = manager.GetAssemblies().Where(a => a.ManifestModule?.Name == moduleName).ToArray();
+			if (owner is null && matches.Length == 1) return Resolve(matches[0]);
+			Report(new(owner is not null ? "UnsupportedNetModule" : matches.Length > 1 ? "AmbiguousModule" : "MissingModule",
+				moduleName, owner is not null || matches.Length > 1, AssemblyResolution.Describe(manager, owner is null ? matches : [owner])));
 			return null;
 		}
 	}
 
-	private PEFile? ResolveModule(string moduleName)
-	{
-		lock (peAssemblies)
-		{
-			PEFile? result = peAssemblies.Values.Where(x => x.Name == moduleName).SingleOrDefault();
-			if (result is not null)
-			{
-			}
-			else
-			{
-				foreach (AssemblyDefinition assembly in manager.GetAssemblies())
-				{
-					if (!assembly.Modules.Any(m => m.Name == moduleName))
-					{
-						continue;
-					}
+	public Task<MetadataFile?> ResolveModuleAsync(MetadataFile mainModule, string moduleName) => Task.FromResult(ResolveModule(mainModule, moduleName));
 
-					Stream stream = manager.GetStreamForAssembly(assembly);
-					stream.Position = 0;
-					string assemblyName = assembly.Name!;
-					result = new PEFile(assemblyName, stream);
-					if (!peAssemblies.TryAdd(assemblyName, result))
-					{
-						throw new Exception($"Could not add pe assembly: {assemblyName} to name dictionary!");
-					}
-					return result;
-				}
-				Logger.Warning(LogCategory.Export, $"Could not resolve module: {moduleName}");
-			}
-			return result;
-		}
+	private void Report(AssemblyResolutionDiagnostic diagnostic)
+	{
+		if (diagnostics.Any(d => d.Kind == diagnostic.Kind && d.RequestedIdentity == diagnostic.RequestedIdentity && d.Candidates.SequenceEqual(diagnostic.Candidates))) return;
+		diagnostics.Add(diagnostic);
+		Logger.Warning(LogCategory.Export, $"Assembly resolution {diagnostic.Kind}: {diagnostic.RequestedIdentity}");
 	}
 
 	IDisposable? IAssemblyResolver.BeginSnapshot() => null;

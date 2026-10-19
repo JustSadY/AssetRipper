@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Assets.Collections;
 using AssetRipper.Assets.IO;
 using AssetRipper.IO.Files;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
@@ -42,6 +43,21 @@ public abstract class Bundle : IDisposable
 	private readonly List<FailedFile> failedFiles = [];
 
 	public bool AnyFailed => failedFiles.Count > 0 || bundles.Any(bundle => bundle.AnyFailed);
+
+	public IEnumerable<FailedFile> FetchFailedFiles()
+	{
+		foreach (FailedFile file in failedFiles)
+		{
+			yield return file;
+		}
+		foreach (Bundle bundle in bundles)
+		{
+			foreach (FailedFile file in bundle.FetchFailedFiles())
+			{
+				yield return file;
+			}
+		}
+	}
 
 	private bool disposedValue;
 
@@ -425,6 +441,24 @@ public abstract class Bundle : IDisposable
 	public SerializedAssetCollection AddCollectionFromSerializedFile(SerializedFile file, AssetFactoryBase factory, UnityVersion defaultVersion = default)
 	{
 		return SerializedAssetCollection.FromSerializedFile(this, file, factory, defaultVersion);
+	}
+
+	internal void RemoveFailedCollection(SerializedAssetCollection collection) => collections.Remove(collection);
+
+	internal void TryAddCollectionFromSerializedFile(SerializedFile file, AssetFactoryBase factory, UnityVersion defaultVersion)
+	{
+		try
+		{
+			AddCollectionFromSerializedFile(file, factory, defaultVersion);
+		}
+		catch (Exception exception) when (ExceptionPolicy.IsRecoverableInput(exception))
+		{
+			AddFailed(new()
+			{
+				Name = file.Name, FilePath = file.FilePath, Stage = "CreateAssetCollection",
+				DeclaredObjectCount = file.Objects.Length, StackTrace = exception.ToString(),
+			});
+		}
 	}
 
 	#region IDisposable Support

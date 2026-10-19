@@ -9,7 +9,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <summary>
 /// Recover unmanaged constraints for generic parameters in Il2Cpp games. This prevents compile errors when using pointers to generic parameters.
 /// </summary>
-public sealed class UnmanagedConstraintRecoveryProcessor : IAssetProcessor
+public sealed class UnmanagedConstraintRecoveryProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 

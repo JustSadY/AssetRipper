@@ -1,11 +1,11 @@
 using AssetRipper.Assets.Bundles;
+using AssetRipper.Export;
 using AssetRipper.Export.Configuration;
 using AssetRipper.Export.PrimaryContent;
 using AssetRipper.Export.UnityProjects;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.IO.Files;
-using AssetRipper.NativeDialogs;
 using AssetRipper.Processing;
 
 namespace AssetRipper.GUI.Web;
@@ -56,46 +56,36 @@ public static class GameFileLoader
 		GameData = ExportHandler.LoadAndProcess(paths, LocalFileSystem.Instance);
 	}
 
-	public static async Task ExportUnityProject(string path)
+	public static Task ExportUnityProject(string path)
 	{
 		if (IsLoaded && IsValidExportDirectory(path))
 		{
-			if (IsNonEmptyDirectory(path))
-			{
-				if (!await UserConsentsToDeletion())
-				{
-					Logger.Info(LogCategory.Export, "User declined to delete existing export directory. Aborting export.");
-					return;
-				}
-				Directory.Delete(path, true);
-			}
-
-			Directory.CreateDirectory(path);
+			path = ExportDirectory.Create(path);
 			ExportHandler.Export(GameData, path, LocalFileSystem.Instance);
 		}
+		return Task.CompletedTask;
 	}
 
-	public static async Task ExportPrimaryContent(string path)
+	public static Task ExportPrimaryContent(string path)
 	{
 		if (IsLoaded && IsValidExportDirectory(path))
 		{
-			if (IsNonEmptyDirectory(path))
-			{
-				if (!await UserConsentsToDeletion())
-				{
-					Logger.Info(LogCategory.Export, "User declined to delete existing export directory. Aborting export.");
-					return;
-				}
-				Directory.Delete(path, true);
-			}
-
-			Directory.CreateDirectory(path);
+			path = ExportDirectory.Create(path);
 			Logger.Info(LogCategory.Export, "Starting primary content export");
 			Logger.Info(LogCategory.Export, $"Attempting to export assets to {path}...");
 			Settings.ExportRootPath = path;
-			PrimaryContentExporter.CreateDefault(GameData, Settings).Export(GameBundle, Settings, LocalFileSystem.Instance);
-			Logger.Info(LogCategory.Export, "Finished exporting primary content.");
+			PrimaryContentExporter exporter = PrimaryContentExporter.CreateDefault(GameData, Settings);
+			exporter.Export(GameBundle, Settings, LocalFileSystem.Instance);
+			if (exporter.LastExportSucceeded == true)
+			{
+				Logger.Info(LogCategory.Export, "Finished exporting primary content.");
+			}
+			else
+			{
+				Logger.Warning(LogCategory.Export, "Finished exporting primary content with errors.");
+			}
 		}
+		return Task.CompletedTask;
 	}
 
 	private static FullConfiguration LoadSettings()
@@ -119,25 +109,5 @@ public static class GameFileLoader
 			return false;
 		}
 		return true;
-	}
-
-	private static bool IsNonEmptyDirectory(string path)
-	{
-		return Directory.Exists(path) && Directory.EnumerateFileSystemEntries(path).Any();
-	}
-
-	private static async Task<bool> UserConsentsToDeletion()
-	{
-		if (Headless)
-		{
-			return true;
-		}
-		ConfirmationDialog.Options options = new()
-		{
-			Message = Localization.ExportDirectoryDeleteUserConfirmation,
-			Type = ConfirmationDialog.Type.YesNo,
-		};
-		bool? result = await ConfirmationDialog.Confirm(options);
-		return result ?? false;
 	}
 }

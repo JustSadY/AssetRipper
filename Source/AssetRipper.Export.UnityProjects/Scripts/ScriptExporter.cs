@@ -1,5 +1,6 @@
 ﻿using AssetRipper.Assets;
 using AssetRipper.Export.Configuration;
+using AssetRipper.Export.Scripts;
 using AssetRipper.Import.Structure.Assembly;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.SourceGenerated;
@@ -14,7 +15,7 @@ public class ScriptExporter : IAssetExporter
 		AssemblyManager = assemblyManager;
 		Decompiler = new ScriptDecompiler(AssemblyManager)
 		{
-			LanguageVersion = configuration.ExportSettings.ScriptLanguageVersion.ToCSharpLanguageVersion(configuration.Version),
+			LanguageSelection = ScriptLanguageSelection.ForUnity(configuration.ExportSettings.ScriptLanguageVersion, configuration.Version),
 			ScriptContentLevel = configuration.ImportSettings.ScriptContentLevel,
 			FullyQualifiedTypeNames = configuration.ExportSettings.ScriptTypesFullyQualified,
 		};
@@ -75,6 +76,10 @@ public class ScriptExporter : IAssetExporter
 
 	public AssemblyExportType GetExportType(string assemblyName)
 	{
+		if (AssemblyManager.GetAssemblies().Count(a => string.Equals(a.Name, assemblyName, StringComparison.OrdinalIgnoreCase)) > 1)
+		{
+			return AssemblyExportType.Decompile;
+		}
 		if (ReferenceAssemblyDictionary.ContainsKey(assemblyName))
 		{
 			return AssemblyExportType.Skip;

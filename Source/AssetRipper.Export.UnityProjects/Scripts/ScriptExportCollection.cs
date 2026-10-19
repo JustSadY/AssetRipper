@@ -1,5 +1,6 @@
 using AsmResolver.DotNet;
 using AssetRipper.Assets;
+using AssetRipper.Export.Scripts;
 using AssetRipper.Export.UnityProjects.Scripts.AssemblyDefinitions;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly;
@@ -13,6 +14,8 @@ using System.Diagnostics;
 namespace AssetRipper.Export.UnityProjects.Scripts;
 public sealed class ScriptExportCollection : ScriptExportCollectionBase
 {
+	public ScriptExportReport? LastReport { get; private set; }
+
 	public ScriptExportCollection(ScriptExporter assetExporter, IMonoScript firstScript) : base(assetExporter, firstScript)
 	{
 		Debug.Assert(assetExporter.AssemblyManager.IsSet);
@@ -40,19 +43,21 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 
 	private bool ShouldExport(IMonoScript script)
 	{
-		if (AssetExporter.GetExportType(script) is AssemblyExportType.Decompile)
-		{
-			return script.IsScriptPresents(AssetExporter.AssemblyManager);
-		}
-		else
-		{
-			return false;
-		}
+		return AssetExporter.GetExportType(script) is AssemblyExportType.Decompile;
 	}
 
 	public override bool Export(IExportContainer container, string projectDirectory, FileSystem fileSystem)
 	{
 		Logger.Info(LogCategory.Export, "Exporting scripts...");
+		ScriptExportReport report = new()
+		{
+			ScriptingBackend = AssetExporter.AssemblyManager.ScriptingBackend,
+			ScriptContentLevel = AssetExporter.Decompiler.ScriptContentLevel,
+			LanguageSelection = AssetExporter.Decompiler.LanguageSelection,
+		};
+		LastReport = report;
+		report.ResolutionDiagnostics.AddRange(AssetExporter.AssemblyManager.ResolutionDiagnostics);
+		AssemblyExportLayout layout = new(AssetExporter.AssemblyManager);
 
 		string assetsDirectoryPath = fileSystem.Path.Join(projectDirectory, AssetsKeyword);
 
@@ -63,6 +68,9 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 		foreach (AssemblyDefinition assembly in AssetExporter.AssemblyManager.GetAssemblies())
 		{
 			string assemblyName = assembly.Name!;
+			// Unity cannot bind versionless MonoScript names to multiple candidates safely.
+			// All DLL candidates are preserved separately by DllPostExporter.
+			if (layout.IsConflicting(assembly)) continue;
 			AssemblyExportType exportType = AssetExporter.GetExportType(assemblyName);
 
 			if (exportType is AssemblyExportType.Decompile)
@@ -70,7 +78,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 				Logger.Info(LogCategory.Export, $"Decompiling {assemblyName}");
 				string outputDirectory = fileSystem.Path.Join(assetsDirectoryPath, GetScriptsFolderName(assemblyName), assemblyName);
 				fileSystem.Directory.Create(outputDirectory);
-				AssetExporter.Decompiler.DecompileWholeProject(assembly, outputDirectory, fileSystem);
+				report.Assemblies.Add(AssetExporter.Decompiler.DecompileWholeProject(assembly, outputDirectory, fileSystem));
 
 				assemblyDefinitionDetailsDictionary.TryAdd(assemblyName, new AssemblyDefinitionDetails(assembly, outputDirectory));
 			}
@@ -93,6 +101,8 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 			{
 				fileSystem.Directory.Create(folderPath);
 				fileSystem.File.WriteAllText(filePath, EmptyScript.GetContent(asset));
+				report.PlaceholderScripts.Add(filePath);
+				Logger.Warning(LogCategory.Export, $"Created placeholder script '{filePath}'.");
 				string assemblyName = asset.GetAssemblyNameFixed();
 				if (!assemblyDefinitionDetailsDictionary.ContainsKey(assemblyName))
 				{
@@ -128,7 +138,9 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 			}
 		}
 
-		return true;
+		report.ResolutionDiagnostics.AddRange(AssetExporter.Decompiler.ResolutionDiagnostics);
+		report.Write(projectDirectory, fileSystem);
+		return report.Succeeded;
 	}
 
 	private void OnAssemblyExported(IExportContainer container, string path, FileSystem fileSystem)

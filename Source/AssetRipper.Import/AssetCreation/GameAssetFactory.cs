@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Assets;
 using AssetRipper.Assets.Generics;
 using AssetRipper.Assets.IO;
+using AssetRipper.Assets.IO.Recovery;
 using AssetRipper.Assets.Metadata;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
@@ -49,26 +50,42 @@ public sealed class GameAssetFactory : AssetFactoryBase
 
 	public override IUnityObjectBase? ReadAsset(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData, SerializedType? assetType, IReadOnlyList<SerializedTypeReference> referenceTypes)
 	{
+		return ReadAsset(assetInfo, assetData, assetType, referenceTypes, null);
+	}
+
+	public override IUnityObjectBase? ReadAsset(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData, SerializedType? assetType, IReadOnlyList<SerializedTypeReference> referenceTypes, IRawObjectSnapshot? snapshot)
+	{
 		if (assetInfo.Collection.Version.LessThan(3, 5))
 		{
 			//Assets with a stripped version can't be read.
 			//Similarly, Unity versions before 3.5 are not supported.
 			//Most asset types changed in 3.5, so this has minimal impact.
+			snapshot?.ReportReadStatus(RawObjectReadStatus.Unreadable, "Unity version is stripped or older than 3.5.");
 			return new UnreadableObject(assetInfo, assetData.ToArray());
 		}
 		else if (assetInfo.ClassID == (int)ClassIDType.MonoBehaviour)
 		{
-			return ReadMonoBehaviour(MonoBehaviour.Create(assetInfo), assetData, AssemblyManager, assetType, referenceTypes);
+			return ReadMonoBehaviour(MonoBehaviour.Create(assetInfo), assetData, AssemblyManager, assetType, referenceTypes, snapshot);
 		}
 		else
 		{
-			return ReadNormalObject(assetInfo, assetData);
+			IUnityObjectBase asset = ReadNormalObject(assetInfo, assetData, out string? error);
+			RawObjectReadStatus status = asset switch
+			{
+				UnknownObject => RawObjectReadStatus.UnknownType,
+				UnreadableObject => RawObjectReadStatus.Unreadable,
+				_ => error is null ? RawObjectReadStatus.Parsed : RawObjectReadStatus.Partial,
+			};
+			snapshot?.ReportReadStatus(status, error);
+			return asset;
 		}
 	}
 
-	private static IMonoBehaviour ReadMonoBehaviour(IMonoBehaviour monoBehaviour, ReadOnlyArraySegment<byte> assetData, IAssemblyManager assemblyManager, SerializedType? type, IReadOnlyList<SerializedTypeReference> referenceTypes)
+	private static IMonoBehaviour ReadMonoBehaviour(IMonoBehaviour monoBehaviour, ReadOnlyArraySegment<byte> assetData, IAssemblyManager assemblyManager, SerializedType? type, IReadOnlyList<SerializedTypeReference> referenceTypes, IRawObjectSnapshot? snapshot)
 	{
 		EndianSpanReader reader = new EndianSpanReader(assetData, monoBehaviour.Collection.EndianType);
+		RawObjectReadStatus status = RawObjectReadStatus.Partial;
+		string? diagnostic = null;
 		try
 		{
 			monoBehaviour.Read(ref reader);
@@ -79,27 +96,32 @@ public sealed class GameAssetFactory : AssetFactoryBase
 				if (structure.TryRead(ref reader, monoBehaviour, TypeTreeResolver.Create(referenceTypes)))
 				{
 					monoBehaviour.Structure = structure;
+					status = RawObjectReadStatus.Parsed;
 				}
 				else
 				{
 					monoBehaviour.Structure = null;
+					diagnostic = "MonoBehaviour fields do not match the serialized payload.";
 				}
 			}
 			else
 			{
-				monoBehaviour.Structure = new UnloadedStructure(monoBehaviour, assemblyManager, assetData.Slice(reader.Position));
+				monoBehaviour.Structure = new UnloadedStructure(monoBehaviour, assemblyManager, assetData.Slice(reader.Position), snapshot);
+				status = RawObjectReadStatus.Deferred;
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
 		{
 			LogMonoBehaviorReadException(monoBehaviour, ex);
+			diagnostic = ex.ToString();
 		}
+		snapshot?.ReportReadStatus(status, diagnostic);
 		return monoBehaviour;
 	}
 
-	private static IUnityObjectBase ReadNormalObject(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData)
+	private static IUnityObjectBase ReadNormalObject(AssetInfo assetInfo, ReadOnlyArraySegment<byte> assetData, out string? error)
 	{
-		IUnityObjectBase asset = TryReadNormalObject(assetInfo, assetData, assetInfo.Collection.Version, out string? error);
+		IUnityObjectBase asset = TryReadNormalObject(assetInfo, assetData, assetInfo.Collection.Version, out error);
 		if (error is null)
 		{
 			return asset;
@@ -123,6 +145,7 @@ public sealed class GameAssetFactory : AssetFactoryBase
 			IUnityObjectBase newAsset = TryReadNormalObject(assetInfo, assetData, newVersion, out string? newError);
 			if (newError is null)
 			{
+				error = null;
 				return newAsset;
 			}
 		}
@@ -168,7 +191,7 @@ public sealed class GameAssetFactory : AssetFactoryBase
 				error = null;
 			}
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
 		{
 			error = MakeError_ReadException(asset, ex);
 		}

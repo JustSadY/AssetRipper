@@ -40,11 +40,17 @@ public sealed record class ImportSettings
 	[JsonConverter(typeof(UnityVersionJsonConverter))]
 	public UnityVersion TargetVersion { get; set; }
 
+	/// <summary>
+	/// Optional persistent directory for raw serialized objects. Set before loading; empty disables recovery capture.
+	/// </summary>
+	public string? RawRecoveryDirectory { get; set; }
+
 	public void Log()
 	{
 		Logger.Info(LogCategory.General, $"{nameof(ScriptContentLevel)}: {ScriptContentLevel}");
 		Logger.Info(LogCategory.General, $"{nameof(StreamingAssetsMode)}: {StreamingAssetsMode}");
 		Logger.Info(LogCategory.General, $"{nameof(DefaultVersion)}: {DefaultVersion}");
 		Logger.Info(LogCategory.General, $"{nameof(TargetVersion)}: {TargetVersion}");
+		Logger.Info(LogCategory.General, $"{nameof(RawRecoveryDirectory)}: {RawRecoveryDirectory}");
 	}
 }

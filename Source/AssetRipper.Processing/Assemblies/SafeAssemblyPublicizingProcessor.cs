@@ -9,7 +9,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// It handles edge cases like determing if something should be publicized and
 /// adding [NonSerialized] to newly public instance fields.
 /// </summary>
-public sealed class SafeAssemblyPublicizingProcessor : IAssetProcessor
+public sealed class SafeAssemblyPublicizingProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)

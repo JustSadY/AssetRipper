@@ -18,15 +18,27 @@ public interface IAssemblyManager : IDisposable, ITypeResolver
 	bool IsValid(ScriptIdentifier scriptID);
 	TypeDefinition GetTypeDefinition(ScriptIdentifier scriptID);
 	IEnumerable<AssemblyDefinition> GetAssemblies();
+	IReadOnlyList<AssemblyDefinition> GetAssemblyCandidates(string simpleName) => GetAssemblies()
+		.Where(a => string.Equals(a.Name, simpleName, StringComparison.OrdinalIgnoreCase)).ToArray();
 	ScriptIdentifier GetScriptID(string assembly, string @namespace, string name);
 	Stream GetStreamForAssembly(AssemblyDefinition assembly);
 	void ClearStreamCache();
+	AssemblySourceInfo? GetSourceInfo(AssemblyDefinition assembly) => null;
+	IReadOnlyList<AssemblyResolutionDiagnostic> ResolutionDiagnostics => [];
+	bool HasAssemblyNameCollisions => GetAssemblies().GroupBy(a => a.Name?.ToString() ?? "", StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1);
 
 	RuntimeContext? RuntimeContext { get; }
 	bool IsSet { get; }
 	ScriptingBackend ScriptingBackend { get; }
 
-	public sealed AssemblyDefinition? Mscorlib => GetAssemblies().FirstOrDefault(a => a.Name == "mscorlib");
+	public sealed AssemblyDefinition? Mscorlib
+	{
+		get
+		{
+			AssemblyDefinition[] matches = GetAssemblies().Where(a => string.Equals(a.Name, "mscorlib", StringComparison.OrdinalIgnoreCase)).Take(2).ToArray();
+			return matches.Length == 1 ? matches[0] : null;
+		}
+	}
 	public sealed bool HasMscorlib2 => Mscorlib?.Version.Major == 2;
 }
 public static class AssemblyManagerExtensions

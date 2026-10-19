@@ -8,7 +8,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <summary>
 /// This processor replaces the method bodies of all methods with a minimal implementation.
 /// </summary>
-public sealed class MethodStubbingProcessor : IAssetProcessor
+public sealed class MethodStubbingProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 

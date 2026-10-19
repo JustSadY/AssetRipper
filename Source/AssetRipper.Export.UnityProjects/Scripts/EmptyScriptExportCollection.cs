@@ -1,4 +1,5 @@
 ﻿using AssetRipper.Export.UnityProjects.Scripts.AssemblyDefinitions;
+using AssetRipper.Export.Scripts;
 using AssetRipper.Import.Logging;
 using AssetRipper.SourceGenerated.Classes.ClassID_115;
 using System.Diagnostics;
@@ -7,6 +8,8 @@ namespace AssetRipper.Export.UnityProjects.Scripts;
 
 public sealed class EmptyScriptExportCollection : ScriptExportCollectionBase
 {
+	public ScriptExportReport? LastReport { get; private set; }
+
 	public EmptyScriptExportCollection(ScriptExporter assetExporter, IMonoScript firstScript) : base(assetExporter, firstScript)
 	{
 		Debug.Assert(!assetExporter.AssemblyManager.IsSet);
@@ -25,6 +28,13 @@ public sealed class EmptyScriptExportCollection : ScriptExportCollectionBase
 	public override bool Export(IExportContainer container, string projectDirectory, FileSystem fileSystem)
 	{
 		Logger.Info(LogCategory.Export, "Exporting scripts...");
+		ScriptExportReport report = new()
+		{
+			ScriptingBackend = AssetExporter.AssemblyManager.ScriptingBackend,
+			ScriptContentLevel = AssetExporter.Decompiler.ScriptContentLevel,
+			LanguageSelection = AssetExporter.Decompiler.LanguageSelection,
+		};
+		LastReport = report;
 
 		string assetsDirectoryPath = fileSystem.Path.Join(projectDirectory, AssetsKeyword);
 
@@ -42,6 +52,8 @@ public sealed class EmptyScriptExportCollection : ScriptExportCollectionBase
 			string filePath = fileSystem.Path.Join(folderPath, fileName);
 			fileSystem.Directory.Create(folderPath);
 			fileSystem.File.WriteAllText(filePath, EmptyScript.GetContent(info));
+			report.PlaceholderScripts.Add(filePath);
+			Logger.Warning(LogCategory.Export, $"Created placeholder script '{filePath}'.");
 			string assemblyName = info.Assembly;
 			if (!assemblyDefinitionDetailsDictionary.ContainsKey(assemblyName))
 			{
@@ -68,6 +80,7 @@ public sealed class EmptyScriptExportCollection : ScriptExportCollectionBase
 			}
 		}
 
-		return true;
+		report.Write(projectDirectory, fileSystem);
+		return report.Succeeded;
 	}
 }

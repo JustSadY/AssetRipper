@@ -11,7 +11,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <summary>
 /// Returning a null by reference causes an error before C# 11. This replaces the method body with a throw statement.
 /// </summary>
-public sealed class NullRefReturnProcessor(ScriptContentLevel scriptContentLevel) : IAssetProcessor
+public sealed class NullRefReturnProcessor(ScriptContentLevel scriptContentLevel) : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 

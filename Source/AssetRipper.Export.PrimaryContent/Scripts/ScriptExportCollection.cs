@@ -12,15 +12,23 @@ namespace AssetRipper.Export.PrimaryContent.Scripts;
 
 public sealed class ScriptExportCollection : ExportCollectionBase
 {
-	public ScriptExportCollection(ScriptContentExtractor contentExtractor, LanguageVersion languageVersion = LanguageVersion.Latest)
+	public ScriptExportReport? LastReport { get; private set; }
+
+	public ScriptExportCollection(ScriptContentExtractor contentExtractor)
 	{
 		ContentExtractor = contentExtractor;
-		LanguageVersion = languageVersion;
+		LanguageSelection = contentExtractor.LanguageSelection;
+	}
+
+	public ScriptExportCollection(ScriptContentExtractor contentExtractor, LanguageVersion languageVersion) : this(contentExtractor)
+	{
+		if (languageVersion != LanguageVersion) LanguageSelection = ScriptLanguageSelection.Explicit(languageVersion);
 	}
 
 	public override ScriptContentExtractor ContentExtractor { get; }
 
-	public LanguageVersion LanguageVersion { get; }
+	public LanguageVersion LanguageVersion => LanguageSelection.Effective;
+	public ScriptLanguageSelection LanguageSelection { get; }
 
 	public override IEnumerable<IUnityObjectBase> Assets => [];
 
@@ -31,7 +39,16 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 	public override bool Export(string projectDirectory, FileSystem fileSystem)
 	{
 		IAssemblyManager assemblyManager = ContentExtractor.AssemblyManager;
+		ScriptExportReport report = new()
+		{
+			ScriptingBackend = assemblyManager.ScriptingBackend,
+			LanguageSelection = LanguageSelection,
+			ProjectScaffoldFramework = ProjectFileWriter.ScaffoldFramework,
+		};
+		LastReport = report;
+		report.ResolutionDiagnostics.AddRange(assemblyManager.ResolutionDiagnostics);
 		ILSpyAssemblyResolver assemblyResolver = new(assemblyManager);
+		AssemblyExportLayout layout = new(assemblyManager);
 
 		string assemblyDirectory = fileSystem.Path.Join(projectDirectory, "Assemblies");
 		fileSystem.Directory.Create(assemblyDirectory);
@@ -44,7 +61,7 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 
 			//Write assembly
 			{
-				string assemblyPath = fileSystem.Path.Join(assemblyDirectory, assembly.Name + ".dll");
+				string assemblyPath = fileSystem.Path.Join(assemblyDirectory, layout.GetStem(assembly) + ".dll");
 				using Stream fileStream = fileSystem.File.Create(assemblyPath);
 				stream.CopyTo(fileStream);
 				stream.Position = 0;
@@ -53,12 +70,12 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 
 		//Decompile scripts
 		string scriptDirectory = fileSystem.Path.Join(projectDirectory, "Scripts");
-		List<string> assemblyNames = [];
+		List<string> projectPaths = [];
 		foreach (AssemblyDefinition assembly in assemblyManager.GetAssemblies())
 		{
 			string assemblyName = assembly.Name ?? throw new InvalidOperationException("Assembly name is null");
 			Logger.Info(LogCategory.Export, $"Decompiling assembly {assemblyName}...");
-			string outputDirectory = fileSystem.Path.Join(scriptDirectory, assemblyName);
+			string outputDirectory = fileSystem.Path.Join(scriptDirectory, layout.GetStem(assembly));
 			fileSystem.Directory.Create(outputDirectory);
 
 			DecompilerSettings settings = new();
@@ -77,23 +94,19 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 				settings.TupleTypes = false;
 			}
 
-			try
+			ILSpyWholeProjectDecompiler decompiler = new(settings, assemblyResolver, ProjectFileWriter.Instance, fileSystem) { LanguageVersion = LanguageVersion };
+			ScriptDecompilationResult result = ScriptDecompilation.Run(decompiler, assemblyResolver, assembly, outputDirectory);
+			report.Assemblies.Add(result);
+			if (fileSystem.File.Exists(fileSystem.Path.Join(outputDirectory, assemblyName + ".csproj")))
 			{
-				ILSpyWholeProjectDecompiler decompiler = new(settings, assemblyResolver, ProjectFileWriter.Instance, fileSystem);
-				decompiler.DecompileProject(assemblyResolver.Resolve(assembly), outputDirectory);
+				projectPaths.Add(fileSystem.Path.Join(layout.GetStem(assembly), assemblyName + ".csproj"));
 			}
-			catch (Exception exception)
-			{
-				Logger.Error(exception);
-			}
-
-			assemblyNames.Add(assemblyName);
 		}
 
 		// Write solution file
-		if (assemblyNames.Count > 0)
+		if (projectPaths.Count > 0)
 		{
-			assemblyNames.Sort(StringComparer.Ordinal);
+			projectPaths.Sort(StringComparer.Ordinal);
 
 			string solutionPath = fileSystem.Path.Join(scriptDirectory, "Scripts.slnx");
 			using Stream stream = fileSystem.File.Create(solutionPath);
@@ -109,16 +122,18 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 
 			xmlWriter.WriteStartElement("Solution");
 
-			foreach (string assemblyName in assemblyNames)
+			foreach (string projectPath in projectPaths)
 			{
 				xmlWriter.WriteStartElement("Project");
-				xmlWriter.WriteAttributeString("Path", fileSystem.Path.Join(assemblyName, assemblyName + ".csproj"));
+				xmlWriter.WriteAttributeString("Path", projectPath);
 				xmlWriter.WriteEndElement();
 			}
 
 			xmlWriter.WriteEndElement();
 		}
 
-		return true;
+		report.ResolutionDiagnostics.AddRange(assemblyResolver.Diagnostics);
+		report.Write(projectDirectory, fileSystem);
+		return report.Succeeded;
 	}
 }

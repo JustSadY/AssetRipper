@@ -1,5 +1,6 @@
 ﻿using AsmResolver.DotNet;
 using AssetRipper.Export.Configuration;
+using AssetRipper.Export.Scripts;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.Processing;
@@ -13,6 +14,7 @@ public class DllPostExporter : IPostExporter
 		Logger.Info(LogCategory.Export, "Saving game assemblies...");
 		IAssemblyManager assemblyManager = gameData.AssemblyManager;
 		AssemblyDefinition[] assemblies = assemblyManager.GetAssemblies().ToArray();
+		AssemblyExportLayout layout = new(assemblyManager);
 		if (assemblies.Length != 0)
 		{
 			string outputDirectory = fileSystem.Path.Join(settings.AuxiliaryFilesPath, "GameAssemblies");
@@ -20,7 +22,7 @@ public class DllPostExporter : IPostExporter
 			fileSystem.Directory.Create(outputDirectory);
 			foreach (AssemblyDefinition assembly in assemblies)
 			{
-				string filepath = fileSystem.Path.Join(outputDirectory, SpecialFileNames.AddAssemblyFileExtension(assembly.Name!));
+				string filepath = fileSystem.Path.Join(outputDirectory, layout.GetStem(assembly) + ".dll");
 				assemblyManager.SaveAssembly(assembly, filepath, fileSystem);
 			}
 		}

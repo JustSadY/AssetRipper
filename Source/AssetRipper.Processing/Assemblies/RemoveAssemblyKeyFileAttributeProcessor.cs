@@ -7,7 +7,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// Removes System.Reflection.AssemblyKeyFileAttribute from assemblies.
 /// It causes compile errors because the key file is not present.
 /// </summary>
-public sealed class RemoveAssemblyKeyFileAttributeProcessor : IAssetProcessor
+public sealed class RemoveAssemblyKeyFileAttributeProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)

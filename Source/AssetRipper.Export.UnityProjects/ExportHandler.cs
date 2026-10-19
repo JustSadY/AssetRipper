@@ -1,5 +1,7 @@
 ﻿using AssetRipper.Assets.Bundles;
 using AssetRipper.Export.Configuration;
+using AssetRipper.Export.Collections;
+using AssetRipper.Export.Scripts;
 using AssetRipper.Export.UnityProjects.PathIdMapping;
 using AssetRipper.Export.UnityProjects.Project;
 using AssetRipper.Export.UnityProjects.Scripts;
@@ -20,6 +22,9 @@ namespace AssetRipper.Export.UnityProjects;
 
 public class ExportHandler
 {
+	public bool? LastExportSucceeded { get; private set; }
+	public CollectionExportReport? LastCollectionReport { get; private set; }
+
 	protected FullConfiguration Settings { get; }
 
 	public ExportHandler(FullConfiguration settings)
@@ -47,10 +52,16 @@ public class ExportHandler
 	public void Process(GameData gameData)
 	{
 		Logger.Info(LogCategory.Processing, "Processing loaded assets...");
+		if (gameData.AssemblyManager.HasAssemblyNameCollisions)
+		{
+			Logger.Warning(LogCategory.Processing, "Assembly name collisions: shared-context script repairs and MonoBehaviour field recovery are disabled. All assembly candidates remain available for export.");
+		}
 		foreach (IAssetProcessor processor in GetProcessors())
 		{
+			if (gameData.AssemblyManager.HasAssemblyNameCollisions && processor is IAssemblyProcessor) continue;
 			processor.Process(gameData);
 		}
+		gameData.RawRecovery?.WriteSummary("Processed");
 		Logger.Info(LogCategory.Processing, "Finished processing assets");
 	}
 
@@ -94,6 +105,8 @@ public class ExportHandler
 
 	public void Export(GameData gameData, string outputPath, FileSystem fileSystem)
 	{
+		LastExportSucceeded = false;
+		LastCollectionReport = null;
 		Logger.Info(LogCategory.Export, "Starting export");
 		Logger.Info(LogCategory.Export, $"Attempting to export assets to {outputPath}...");
 		Logger.Info(LogCategory.Export, $"Game files have these Unity versions: {GetListOfVersions(gameData.GameBundle)}");
@@ -101,19 +114,46 @@ public class ExportHandler
 
 		Settings.ExportRootPath = outputPath;
 		Settings.SetProjectSettings(gameData.ProjectVersion);
+		gameData.RawRecovery?.WriteReference(outputPath, fileSystem);
 
 		ProjectExporter projectExporter = new(Settings, gameData.AssemblyManager);
 		BeforeExport(projectExporter);
 		projectExporter.DoFinalOverrides(Settings);
-		projectExporter.Export(gameData.GameBundle, Settings, fileSystem);
+		try
+		{
+			projectExporter.Export(gameData.GameBundle, Settings, fileSystem);
+		}
+		finally
+		{
+			LastCollectionReport = projectExporter.LastReport;
+		}
 
-		Logger.Info(LogCategory.Export, "Finished exporting assets");
+		if (projectExporter.LastExportSucceeded == true)
+		{
+			Logger.Info(LogCategory.Export, "Finished exporting assets");
+		}
+		else
+		{
+			Logger.Warning(LogCategory.Export, "Finished exporting assets with errors");
+		}
 
 		foreach (IPostExporter postExporter in GetPostExporters())
 		{
 			postExporter.DoPostExport(gameData, Settings, fileSystem);
 		}
 		Logger.Info(LogCategory.Export, "Finished post-export");
+		bool incompleteRecovery = gameData.RawRecovery?.GetSummary().HasIncompleteObjects == true;
+		AssemblyResolutionReport assemblyReport = AssemblyResolutionReport.Create(gameData.AssemblyManager, "AuxiliaryFiles/GameAssemblies");
+		assemblyReport.Write(outputPath, fileSystem);
+		if (!assemblyReport.Succeeded) Logger.Warning(LogCategory.Export, "Assembly identity conflicts prevented a complete export. See assembly-resolution-report.json.");
+		bool succeeded = projectExporter.LastExportSucceeded == true && !incompleteRecovery && assemblyReport.Succeeded;
+		gameData.RawRecovery?.WriteSummary(succeeded ? "Exported" : "ExportedWithErrors");
+		gameData.RawRecovery?.WriteReference(outputPath, fileSystem);
+		if (incompleteRecovery)
+		{
+			Logger.Warning(LogCategory.Export, "Some preserved objects could not be fully parsed. See raw-recovery.json and the recovery journal.");
+		}
+		LastExportSucceeded = succeeded;
 
 		static string GetListOfVersions(GameBundle gameBundle)
 		{

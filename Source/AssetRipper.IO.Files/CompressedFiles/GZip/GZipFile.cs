@@ -1,4 +1,5 @@
 ﻿using AssetRipper.IO.Endian;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.IO.Files.Streams.Smart;
 using System.IO.Compression;
@@ -21,7 +22,7 @@ public sealed class GZipFile : CompressedFile
 			memoryStream.Position = 0;
 			UncompressedFile = new ResourceFile(memoryStream, FilePath, Name);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 		{
 			UncompressedFile = new FailedFile()
 			{

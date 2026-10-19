@@ -1,5 +1,6 @@
 ﻿using AssetRipper.Assets.Bundles;
 using AssetRipper.Assets.Collections;
+using AssetRipper.Import.Recovery;
 using AssetRipper.Import.Structure;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.Import.Structure.Platforms;
@@ -12,6 +13,8 @@ public record GameData(
 	IAssemblyManager AssemblyManager,
 	PlatformGameStructure? PlatformStructure)
 {
+	public RawObjectStore? RawRecovery { get; init; }
+
 	public ProcessedAssetCollection AddNewProcessedCollection(string name)
 	{
 		return GameBundle.AddNewProcessedCollection(name, ProjectVersion);
@@ -19,6 +22,9 @@ public record GameData(
 
 	public static GameData FromGameStructure(GameStructure gameStructure)
 	{
-		return new(gameStructure.FileCollection, gameStructure.FileCollection.GetMaxUnityVersion(), gameStructure.AssemblyManager, gameStructure.PlatformStructure);
+		return new(gameStructure.FileCollection, gameStructure.FileCollection.GetMaxUnityVersion(), gameStructure.AssemblyManager, gameStructure.PlatformStructure)
+		{
+			RawRecovery = gameStructure.RawRecovery,
+		};
 	}
 }

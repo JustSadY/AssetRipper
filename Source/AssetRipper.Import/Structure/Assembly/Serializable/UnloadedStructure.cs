@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Assets;
 using AssetRipper.Assets.Cloning;
 using AssetRipper.Assets.Generics;
+using AssetRipper.Assets.IO.Recovery;
 using AssetRipper.Assets.IO.Writing;
 using AssetRipper.Assets.Metadata;
 using AssetRipper.Assets.Traversal;
@@ -47,12 +48,14 @@ public sealed class UnloadedStructure : UnityAssetBase, IDeepCloneable
 	/// The segment of data for this structure.
 	/// </summary>
 	public ReadOnlyArraySegment<byte> StructureData { get; }
+	private readonly IRawObjectSnapshot? rawSnapshot;
 
-	public UnloadedStructure(IMonoBehaviour monoBehaviour, IAssemblyManager assemblyManager, ReadOnlyArraySegment<byte> structureData)
+	public UnloadedStructure(IMonoBehaviour monoBehaviour, IAssemblyManager assemblyManager, ReadOnlyArraySegment<byte> structureData, IRawObjectSnapshot? rawSnapshot = null)
 	{
 		MonoBehaviour = monoBehaviour;
 		AssemblyManager = assemblyManager;
 		StructureData = structureData;
+		this.rawSnapshot = rawSnapshot;
 	}
 
 	private void ThrowIfNotStructure()
@@ -74,6 +77,7 @@ public sealed class UnloadedStructure : UnityAssetBase, IDeepCloneable
 			if (structure.TryRead(ref reader, MonoBehaviour, AssemblyManager))
 			{
 				MonoBehaviour.Structure = structure;
+				rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Parsed);
 				return structure;
 			}
 		}
@@ -83,6 +87,7 @@ public sealed class UnloadedStructure : UnityAssetBase, IDeepCloneable
 		}
 
 		MonoBehaviour.Structure = null;
+		rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Partial, failureReason ?? "MonoBehaviour script is missing or its fields do not match the serialized payload.");
 		return null;
 	}
 

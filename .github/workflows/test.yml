@@ -21,4 +21,15 @@ jobs:
         run: dotnet build
 
       - name: Run Tests
-        run: dotnet test
+        run: dotnet test --no-build --logger trx --results-directory TestResults
+
+      - name: Upload Test Evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-evidence
+          path: |
+            TestResults/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/managed-roundtrip/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-reference/**
+          retention-days: 7

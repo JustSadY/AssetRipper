@@ -2,6 +2,7 @@
 using AssetRipper.Assets.IO;
 using AssetRipper.IO.Files;
 using AssetRipper.IO.Files.CompressedFiles;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.ResourceFiles;
 using AssetRipper.IO.Files.SerializedFiles;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
@@ -40,7 +41,7 @@ partial class GameBundle
 			switch (RemoveLastItem(fileStack))
 			{
 				case SerializedFile serializedFile:
-					SerializedAssetCollection.FromSerializedFile(this, serializedFile, assetFactory, defaultVersion);
+					TryAddCollectionFromSerializedFile(serializedFile, assetFactory, defaultVersion);
 					break;
 				case FileContainer container:
 					SerializedBundle serializedBundle = SerializedBundle.FromFileContainer(container, assetFactory, defaultVersion);
@@ -76,7 +77,7 @@ partial class GameBundle
 				file = SchemeReader.LoadFile(path, fileSystem);
 				file.ReadContentsRecursively();
 			}
-			catch (Exception ex)
+			catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 			{
 				file = new FailedFile()
 				{

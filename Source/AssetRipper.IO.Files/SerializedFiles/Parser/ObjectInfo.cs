@@ -64,6 +64,8 @@ public struct ObjectInfo
 
 		// Size of the object data.
 		int byteSize = reader.ReadInt32();
+		ByteOffset = dataOffset + byteStart;
+		DeclaredByteSize = byteSize;
 
 		// Read object data
 		{
@@ -218,6 +220,12 @@ public struct ObjectInfo
 	/// Unique ID that identifies the object. Can be used as a key for a map.
 	/// </summary>
 	public long FileID { get; set; }
+	/// <summary>
+	/// Absolute offset within the decoded serialized-file stream, when read from a file.
+	/// Derived source locations are not part of serialized-object equality.
+	/// </summary>
+	public long? ByteOffset { get; private set; }
+	public int? DeclaredByteSize { get; private set; }
 	/// <summary>
 	/// Type ID of the object, which is mapped to <see cref="SerializedType.TypeID"/><br/>
 	/// Equals to classID if the object is not MonoBehaviour"/>

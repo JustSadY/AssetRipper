@@ -18,6 +18,7 @@ public sealed class MixedGameStructure : PlatformGameStructure
 			{
 				string name = MultiFileStream.GetFileName(path);
 				AddFile(name, MultiFileStream.GetFilePath(path));
+				if (MonoManager.IsMonoAssembly(name)) AddAssembly(name, MultiFileStream.GetFilePath(path));
 				string directory = FileSystem.Path.GetDirectoryName(path) ?? throw new Exception("Could not get directory name");
 				dataPaths.Add(directory);
 			}

@@ -13,6 +13,12 @@ public class ProjectAssetContainer : IExportContainer
 {
 	public ProjectAssetContainer(ProjectExporter exporter, CoreConfiguration options, IEnumerable<IUnityObjectBase> assets,
 		IReadOnlyList<IExportCollection> collections)
+		: this(exporter, options, assets, collections.Select(c => (c, c.Assets)).ToArray())
+	{
+	}
+
+	internal ProjectAssetContainer(ProjectExporter exporter, CoreConfiguration options, IEnumerable<IUnityObjectBase> assets,
+		IReadOnlyList<(IExportCollection Collection, IEnumerable<IUnityObjectBase> Assets)> collections)
 	{
 		m_exporter = exporter ?? throw new ArgumentNullException(nameof(exporter));
 		CurrentCollection = null!;
@@ -22,9 +28,9 @@ public class ProjectAssetContainer : IExportContainer
 		m_buildSettings = assets.OfType<IBuildSettings>().FirstOrDefault();
 
 		List<SceneExportCollection> scenes = new();
-		foreach (IExportCollection collection in collections)
+		foreach ((IExportCollection collection, IEnumerable<IUnityObjectBase> members) in collections)
 		{
-			foreach (IUnityObjectBase asset in collection.Assets)
+			foreach (IUnityObjectBase asset in members)
 			{
 				CheckIfAlreadyAdded(this, asset, collection);
 				m_assetCollections.Add(asset, collection);

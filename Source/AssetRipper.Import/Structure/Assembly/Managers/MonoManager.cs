@@ -19,12 +19,13 @@ public sealed class MonoManager : BaseManager
 
 	public override void Initialize(PlatformGameStructure gameStructure)
 	{
-		Logger.Info(LogCategory.Import, $"During Mono initialization, found {gameStructure.Assemblies.Count} assemblies");
+		KeyValuePair<string, string>[] candidates = gameStructure.AssemblyCandidates.ToArray();
+		Logger.Info(LogCategory.Import, $"During Mono initialization, found {candidates.Length} assembly candidates");
 
 		Debug.Assert(RuntimeContext is null);
 
 		AssemblyDefinition mscorlib;
-		if (TryGetMscorlibPath(gameStructure.Assemblies, out string? mscorlibPath))
+		if (TryGetMscorlibPath(candidates, out string? mscorlibPath))
 		{
 			mscorlib = TryLoad("mscorlib.dll", mscorlibPath, gameStructure.FileSystem) ?? LoadSystemRuntimeAsMscorlib();
 		}
@@ -39,7 +40,7 @@ public sealed class MonoManager : BaseManager
 		runtimeContext.AddAssembly(mscorlib);
 		Debug.Assert(RuntimeContext is not null);
 
-		foreach ((string assemblyName, string assemblyPath) in gameStructure.Assemblies)
+		foreach ((string assemblyName, string assemblyPath) in candidates)
 		{
 			if (assemblyPath != mscorlibPath)
 			{
@@ -76,23 +77,11 @@ public sealed class MonoManager : BaseManager
 			}
 		}
 
-		static bool TryGetMscorlibPath(Dictionary<string, string> assemblies, [NotNullWhen(true)] out string? mscorlibPath)
+		static bool TryGetMscorlibPath(IEnumerable<KeyValuePair<string, string>> assemblies, [NotNullWhen(true)] out string? mscorlibPath)
 		{
-			// Fast path
-			if (assemblies.TryGetValue("mscorlib.dll", out mscorlibPath))
-			{
-				return true;
-			}
-
-			foreach ((string assemblyName, string assemblyPath) in assemblies)
-			{
-				if (string.Equals(assemblyName, "mscorlib.dll", StringComparison.OrdinalIgnoreCase))
-				{
-					mscorlibPath = assemblyPath;
-					return true;
-				}
-			}
-			return false;
+			string[] paths = assemblies.Where(a => a.Key.Equals("mscorlib.dll", StringComparison.OrdinalIgnoreCase)).Select(a => a.Value).Take(2).ToArray();
+			mscorlibPath = paths.Length == 1 ? paths[0] : null;
+			return mscorlibPath is not null;
 		}
 	}
 
@@ -112,7 +101,7 @@ public sealed class MonoManager : BaseManager
 
 	public static bool IsMonoAssembly(string fileName)
 	{
-		if (fileName.EndsWith(AssemblyExtension, StringComparison.Ordinal))
+		if (fileName.EndsWith(AssemblyExtension, StringComparison.OrdinalIgnoreCase))
 		{
 			return true;
 		}

@@ -1,0 +1,89 @@
+{
+  "SchemaVersion": 1,
+  "Name": "Unity6000.4.0f1.NetStandard21.CompileOnly",
+  "UnityVersion": "6000.4.0f1",
+  "ApiCompatibilityLevel": ".NET Standard 2.1",
+  "LanguageVersion": "CSharp9",
+  "References": [
+    {
+      "File": "Managed/UnityEngine/UnityEngine.CoreModule.dll",
+      "Sha256": "05a69074d2c6b773ac1a921d7fafcc14649a38f08362327936c993ffc59ebe65"
+    },
+    {
+      "File": "Managed/UnityEngine/UnityEngine.SharedInternalsModule.dll",
+      "Sha256": "d5f8598f892193059dc3df5b6816e4d3b1e8e2be4a1376f600ca86a116122077"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.ComponentModel.Composition.dll",
+      "Sha256": "3d9e953036e19ba57ee12c1148a35e067442063c86ad9d40ff393fb289421914"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Core.dll",
+      "Sha256": "83c8c06c5e59955aad7ef4acc13b63d702764f5b4e20cefb3a431cb2f75a12ed"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Data.dll",
+      "Sha256": "722b754ca36e903c69519e8906ebc0f96f14525d847f73f3b5f2ac765499715b"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Drawing.dll",
+      "Sha256": "c9a3ea4bcb020c63a986fd72a31ce997e62a5f8d04460a32548e6fa31ae8f910"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.IO.Compression.FileSystem.dll",
+      "Sha256": "2511e6d2df543140d45bf45d8df2cb34b8590db5193157e970021136c20173d6"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Net.dll",
+      "Sha256": "b99d8f30be2f3ef351b7e00b6cd6b4c09826dfc3ba334999cfbc2899d87204e8"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Numerics.dll",
+      "Sha256": "ff69f92af7abae62302e0b29e7562d3f7392bc11d95d75e587b4ca6f1ceb8cbe"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Runtime.Serialization.dll",
+      "Sha256": "618f378d908436c7e143ec0ffe95ea791431a728a29815eaa1618ec5906aa05f"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.ServiceModel.Web.dll",
+      "Sha256": "ef71e6e462f783e8a9ae8d019c7c737256b3d1593659e9831583af4c1b3747e9"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Transactions.dll",
+      "Sha256": "a518484c7988530007547406cc8d14b1cde92fc26f373d49ea155cab472a6131"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Web.dll",
+      "Sha256": "2c1b3298574d95c3232a45a073d39dae0908e89dacfbfb42e4f44ebf06368fe4"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Windows.dll",
+      "Sha256": "a1bc4b5483e459783cde59c72f9213d13136695ebbba1b9e6093d50d675d741d"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Xml.Linq.dll",
+      "Sha256": "9649dcf62b2882648a5b5de48b931b8c7080da8e8a96fc853e87801fae8d892d"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Xml.Serialization.dll",
+      "Sha256": "41738a9f79bbe5dfcf9b5d75960caa091d5b4a7cd276e7176c9d03df260737e7"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.Xml.dll",
+      "Sha256": "1191d6b547783fb32061de561a9379fbe7c788518510cc22c71d3c4646dd65f5"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/System.dll",
+      "Sha256": "2886c15559ef9f2f2c06389d204176ef86f74344416e680d450ac210d40656aa"
+    },
+    {
+      "File": "NetStandard/compat/2.1.0/shims/netfx/mscorlib.dll",
+      "Sha256": "fb7ac3d0534282d14c3256e66f8d273ea016055ea1307c0f70021e7a236d6c33"
+    },
+    {
+      "File": "NetStandard/ref/2.1.0/netstandard.dll",
+      "Sha256": "79a49049c360a3ff282e747c311fcd567834efde564a96689872564164756e84"
+    }
+  ]
+}

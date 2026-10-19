@@ -32,6 +32,11 @@ public abstract partial class PlatformGameStructure
 	public HashSet<KeyValuePair<string, string>> Files { get; } = [];
 	/// <summary>AssemblyName : AssemblyPath</summary>
 	public Dictionary<string, string> Assemblies { get; } = [];
+	private readonly HashSet<KeyValuePair<string, string>> additionalAssemblies = [];
+	/// <summary>All discovered paths, including filenames duplicated across directories.</summary>
+	public IEnumerable<KeyValuePair<string, string>> AssemblyCandidates => Assemblies.Concat(additionalAssemblies)
+		.Select(p => new KeyValuePair<string, string>(p.Key, FileSystem.Path.GetFullPath(p.Value)))
+		.DistinctBy(p => p.Value, StringComparer.Ordinal).OrderBy(p => p.Value, StringComparer.Ordinal);
 
 	protected const string DataFolderName = "Data";
 	protected const string ManagedName = "Managed";
@@ -121,11 +126,8 @@ public abstract partial class PlatformGameStructure
 	public string? RequestAssembly(string assembly)
 	{
 		string assemblyName = $"{assembly}{MonoManager.AssemblyExtension}";
-		if (Assemblies.TryGetValue(assemblyName, out string? assemblyPath))
-		{
-			return assemblyPath;
-		}
-		return null;
+		string[] paths = AssemblyCandidates.Where(p => p.Key.Equals(assemblyName, StringComparison.OrdinalIgnoreCase)).Select(p => p.Value).Take(2).ToArray();
+		return paths.Length == 1 ? paths[0] : null;
 	}
 
 	public string? RequestResource(string resource)
@@ -279,11 +281,17 @@ public abstract partial class PlatformGameStructure
 			string name = FileSystem.Path.GetFileName(file);
 			if (MonoManager.IsMonoAssembly(name))
 			{
-				if (!Assemblies.TryAdd(name, file))
-				{
-					Logger.Log(LogType.Warning, LogCategory.Import, $"Duplicate assemblies found: '{Assemblies[name]}' & '{file}'");
-				}
+				AddAssembly(name, file);
 			}
+		}
+	}
+
+	protected void AddAssembly(string name, string path)
+	{
+		path = FileSystem.Path.GetFullPath(path);
+		if (!Assemblies.TryAdd(name, path) && Assemblies[name] != path && additionalAssemblies.Add(new(name, path)))
+		{
+			Logger.Warning(LogCategory.Import, $"Preserving duplicate assembly candidates: '{Assemblies[name]}' & '{path}'");
 		}
 	}
 

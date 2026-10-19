@@ -13,7 +13,7 @@ namespace AssetRipper.Processing.Assemblies;
 /// <summary>
 /// Improves decompilation of obfuscated assemblies.
 /// </summary>
-public sealed partial class ObfuscationRepairProcessor : IAssetProcessor
+public sealed partial class ObfuscationRepairProcessor : IAssemblyProcessor
 {
 	public void Process(GameData gameData) => Process(gameData.AssemblyManager);
 	private static void Process(IAssemblyManager manager)

@@ -1,19 +1,19 @@
 ﻿using AsmResolver.DotNet;
 using AssetRipper.Export.Scripts;
 using AssetRipper.Import.Configuration;
-using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp;
-using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 
 namespace AssetRipper.Export.UnityProjects.Scripts;
 
 internal class ScriptDecompiler
 {
+	public IReadOnlyList<AssetRipper.Import.Structure.Assembly.AssemblyResolutionDiagnostic> ResolutionDiagnostics => assemblyResolver.Diagnostics;
 	private readonly ILSpyAssemblyResolver assemblyResolver;
-	public LanguageVersion LanguageVersion { get; set; } = LanguageVersion.CSharp7_3;
+	public ScriptLanguageSelection LanguageSelection { get; set; } = ScriptLanguageSelection.Explicit(LanguageVersion.CSharp7_3);
+	public LanguageVersion LanguageVersion => LanguageSelection.Effective;
 	public ScriptContentLevel ScriptContentLevel { get; set; } = ScriptContentLevel.Level2;
 	public ScriptingBackend ScriptingBackend { get; set; } = ScriptingBackend.Unknown;
 	public bool FullyQualifiedTypeNames { get; set; } = false;
@@ -25,7 +25,7 @@ internal class ScriptDecompiler
 		ScriptingBackend = scriptingBackend;
 	}
 
-	public void DecompileWholeProject(AssemblyDefinition assembly, string outputFolder, FileSystem fileSystem)
+	public ScriptDecompilationResult DecompileWholeProject(AssemblyDefinition assembly, string outputFolder, FileSystem fileSystem)
 	{
 		DecompilerSettings settings = new();
 
@@ -44,19 +44,7 @@ internal class ScriptDecompiler
 
 		CustomWholeProjectDecompiler decompiler = new(settings, assemblyResolver, fileSystem);
 
-		DecompileWholeProject(decompiler, assembly, outputFolder);
-	}
-
-	private void DecompileWholeProject(WholeProjectDecompiler decompiler, AssemblyDefinition assembly, string outputFolder)
-	{
-		try
-		{
-			decompiler.DecompileProject(assemblyResolver.Resolve(assembly), outputFolder, TextWriter.Null);
-		}
-		catch (Exception exception)
-		{
-			Logger.Error(exception);
-		}
+		return ScriptDecompilation.Run(decompiler, assemblyResolver, assembly, outputFolder, TextWriter.Null);
 	}
 
 	private sealed class CustomWholeProjectDecompiler(DecompilerSettings settings, ILSpyAssemblyResolver assemblyResolver, FileSystem fileSystem) : ILSpyWholeProjectDecompiler(settings, assemblyResolver, NullProjectFileWriter.Instance, fileSystem)
