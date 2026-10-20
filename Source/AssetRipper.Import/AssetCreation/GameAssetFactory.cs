@@ -9,6 +9,7 @@ using AssetRipper.Import.Structure.Assembly.Serializable;
 using AssetRipper.Import.Structure.Assembly.TypeTrees;
 using AssetRipper.IO.Endian;
 using AssetRipper.IO.Files;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.IO.Files.SerializedFiles.Parser;
 using AssetRipper.SerializationLogic;
 using AssetRipper.SourceGenerated;
@@ -86,34 +87,41 @@ public sealed class GameAssetFactory : AssetFactoryBase
 		EndianSpanReader reader = new EndianSpanReader(assetData, monoBehaviour.Collection.EndianType);
 		RawObjectReadStatus status = RawObjectReadStatus.Partial;
 		string? diagnostic = null;
+		int structureStart = 0;
+		string schemaSource = "Header";
 		try
 		{
 			monoBehaviour.Read(ref reader);
+			structureStart = reader.Position;
+			schemaSource = "TypeTree";
 			SerializableStructure? structure;
 			if (type is not null && TypeTreeNodeStruct.TryMakeFromTypeTree(type.OldType, out TypeTreeNodeStruct rootNode))
 			{
 				structure = SerializableTreeType.FromRootNode(rootNode, true).CreateSerializableStructure();
-				if (structure.TryRead(ref reader, monoBehaviour, TypeTreeResolver.Create(referenceTypes)))
+				if (structure.TryRead(ref reader, monoBehaviour, TypeTreeResolver.Create(referenceTypes), out SerializableStructureReadResult result))
 				{
 					monoBehaviour.Structure = structure;
 					status = RawObjectReadStatus.Parsed;
 				}
 				else
 				{
-					monoBehaviour.Structure = null;
-					diagnostic = "MonoBehaviour fields do not match the serialized payload.";
+					monoBehaviour.Structure = new UnreadableStructure(assetData.Slice(structureStart), result, schemaSource, structureStart);
+					diagnostic = result.Diagnostic;
 				}
 			}
 			else
 			{
-				monoBehaviour.Structure = new UnloadedStructure(monoBehaviour, assemblyManager, assetData.Slice(reader.Position), snapshot);
+				monoBehaviour.Structure = new UnloadedStructure(monoBehaviour, assemblyManager, assetData.Slice(reader.Position), snapshot, reader.Position);
 				status = RawObjectReadStatus.Deferred;
 			}
 		}
-		catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+		catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 		{
 			LogMonoBehaviorReadException(monoBehaviour, ex);
 			diagnostic = ex.ToString();
+			monoBehaviour.Structure = new UnreadableStructure(assetData.Slice(structureStart),
+				new(reader.Position - structureStart, assetData.Count - structureStart, diagnostic), schemaSource, structureStart,
+				schemaSource == "Header" ? "WholeObject" : "ScriptFields");
 		}
 		snapshot?.ReportReadStatus(status, diagnostic);
 		return monoBehaviour;

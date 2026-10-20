@@ -59,6 +59,7 @@ public sealed class SerializedAssetCollection : AssetCollection
 		SerializedAssetCollection collection = new SerializedAssetCollection(bundle)
 		{
 			Name = file.NameFixed,
+			OriginalName = file.Name,
 			FilePath = file.FilePath,
 			Version = version,
 			OriginalVersion = version,

@@ -402,3 +402,71 @@ Sözleşme ve sınırlar: [managed roundtrip notları](MANAGED_ROUNDTRIP.tr.md).
 - Doğrulama: gerçek Unity referansları etkin Debug **653/653**, ilgili Release **124/124**; Release build **0 uyarı / 0 hata**. 20 referans ve sekiz compile raporunun kaynak/DLL hash'leri ayrıca eşleşti. Kurulumsuz denemede beş kontrolün `NotExecuted` olduğu doğrulandı.
 
 Sözleşme ve çalıştırma: [script dil seçimi ve Unity referansları](SCRIPT_LANGUAGE_PROFILE.tr.md). P08 için sonraki somut iş, tek bozuk tipin bağımsız tip çıktısını engellemesini önleyen fallback ve bu compile ölçümleriyle regresyon kontrolü.
+
+## 18. Yedinci uygulama paketi — P08 paylaşılan dosyada tip kurtarma
+
+- Generic arity nedeniyle aynı C# dosyasına giden tiplerde gerçek bir kayıp yeniden üretildi: geçersiz decimal metadata'sı, sağlam sibling ve nested tipi de hata yorumuna dönüştürüyordu. Düzeltme öncesi regresyon testi bu kaybı gösterdi.
+- Ortak script hattı yalnız bütünüyle ILSpy hata yorumuna dönüşen paylaşılan dosyaları tip bazında tekrar deniyor. Sağlam nongeneric tip özgün yola, diğer sağlam tipler token içeren ayrı dosyalara yazılıyor. Mevcut kısmi kaynak değiştirilmiyor; resource companion-map sınırı açık skip gerekçesi taşıyor.
+- Özgün hata dosyasının tam baytları `.txt` kanıtı ve SHA-256 ile korunuyor. Denenen tipler, kaynak yolları ve field/method token'larının containing-type ilişkisi script raporuna eklendi. Kısmi kurtarma genel sonucu başarılı saydırmıyor; üretimde compile/behavior doğrulaması iddia edilmiyor.
+- İki gerçek export yolunda bozuk DLL arşivi ve canonical Unity script metadata'sı korunuyor. Çıkan C# tekrar derleniyor; kaynak sahibi olduğumuz özgün fixture ile beş bilinen davranış gözlemi eşleşiyor. Sağlam/bütün tipleri bozuk assembly, çoklu sibling, mevcut çıktı çakışması, partial method source, resource skip ve fatal/recoverable hata sınırları test edildi. Kanıt dizinleri CI artifact'ına eklendi.
+- Doğrulama: Debug **670/670**, ilgili Release **141/141**; son incremental Release build **0 uyarı / 0 hata**. İlk geniş build'de değişmeyen dosyalardan 12 mevcut uyarı vardı. Dört export kanıtının DLL/kanıt hash'leri, göreli yolları, davranış dizileri ve başarısızlık bayrakları ayrıca eşleşti.
+- P08'in global metadata/type-system hatası, tek tipli dosya, nested/member düzeyinde ek fallback ve üretimde doğrulama bölümleri açık. Unity Editor import ve IL2CPP recovery çalıştırılmadı. P09 payload/şema/PPtr oracle doğrulaması sonraki bağımsız dilimdir.
+
+Sözleşme, kanıt ve sınırlar: [tip bazında kurtarma](TYPE_RECOVERY.tr.md).
+
+## 19. Sekizinci uygulama paketi — P09 payload ve PPtr ilk dilim
+
+- Eksik script/şema veya başarısız alan okumasından sonra `Structure=null` ile kaybolan payload için `UnreadableStructure` eklendi. Ham segment, okuma sonucu, scope/offset ve `DependencyCoverage=Incomplete` korunuyor; kısmi alanlar gerçek veri gibi yayımlanmıyor. Clone kanıtı koruyor; version-changer lazy raw snapshot/offset bağlantısını taşıyor.
+- Bağımsız alan oracle'ı ikinci kaybı gösterdi: scalar/array/nested PPtr değerleri doğruyken dependency listesi boştu. `SerializableValue` artık `IPPtr` değerlerini doğrudan listeliyor; null/eksik hedefleri sıfırlamıyor ve alan yollarını koruyor.
+- İki export yolu, hazırlık öncesi lazy okumaları tamamlamayı deniyor. `collection-export-report.json` içindeki `MonoBehaviourFailures` genel sonucu raw capture kapalıyken de başarısız yapıyor. Başarısız segment SHA-256 `.bin` fallback'iyle saklanıyor; çakışan çıktı ezilmiyor ve bağımsız TextAsset export'u sürüyor. P05'in tam nesne arşivi/journal sözleşmesi ayrıca devam ediyor.
+- Ortak okuma politikası fatal IO/cancel/access/OOM/wrapped hataları layout hatası diye yutmuyor. Beklenmeyen girdi sonu yerel veri hatası olarak kaydediliyor; journal IO source-read catch sınırının dışında kalıyor.
+- Elle yazılmış binary payload, kaynak sahibi olduğumuz C# fixture'ının metadata şeması ve ayrı TypeTree şemasıyla doğrulandı. Kalıtım/private SerializeField/alan eleme, UTF-8, array sınırı, little/big endian alignment, yerel/harici/null/eksik/64-bit PPtr ve negative kontroller var. Fixture gerçek Unity runtime'ı yerine kontrollü shim'ler kullanıyor; DLL yürütülmüyor.
+- Doğrulama: Debug **698/698**, ilgili Release **169/169**; Release build başarılı, yalnız mevcut Animator TODO uyarısı. Dört oracle raporunun değer/pointer/hash'leri ve dört production başarısızlık raporunun payload hash'leri ayrıca doğrulandı. CI artifact yolları eklendi.
+- P09'un gerçek Editor-generated sahne/AssetBundle ve alan/PPtr oracle'ı, managed-reference graph ve tüm profil/sürüm matrisi açık. Tam bayt tüketimi doğru şema garantisi sayılmıyor. Sonraki P09 dilimi gerçek Unity çıktısıyla aynı alan/ref kontrollerini kurmak; P13 Editor import/scene ve IL2CPP kabul kapıları ayrı kalıyor.
+
+Sözleşme ve çalıştırma: [MonoBehaviour payload/PPtr doğrulaması](MONOBEHAVIOUR_PAYLOAD.tr.md).
+
+## 20. Dokuzuncu uygulama paketi — P09 gerçek Editor corpus
+
+- Kaynak sahibi olduğumuz küçük proje Unity **6000.4.0f1** Editor'da derlendi; sahne/prefab kaydedilip sahne yeniden açıldı. `SerializedObject` alan/ref oracle'ı, DLL ve SHA-256 girdi manifesti üretildi. Script yerel geçici projede çalışıyor; mevcut proje veya çıktı temizlenmiyor.
+- Linux64 için aynı prefab/harici TextAsset build map'i TypeTree açık ve `DisableWriteTypeTree` ile ayrı bundle'lara dönüştürüldü. Assembly şeması yolu gerçek Editor-compiled DLL'yi ve pinli Unity referans metadata'sını kullanıyor; fixture DLL'si test host'unda yürütülmüyor.
+- Dört integration vakası gerçek bundle'lardaki altı alan değerini ve beş PPtr yolu/hedefini Editor oracle'ıyla karşılaştırıyor. Harici bundle eksikken native pointer ID'lerinin değiştirilmediği ayrıca kontrol ediliyor. Kaynak asset GUID/local ID ile bundle PathID eşit sayılmıyor.
+- Tekrarlanabilir Python üretim komutu, kaynak Unity projesi, beş bağımsız integrity/loader testi ve CI kanıt yolları eklendi. Fixture yoksa dört gerçek test `Skipped/NotRun`; yanlış/eksik/hash'i değişmiş yapılandırılmış girdi başarısız oluyor.
+- Doğrulama: corpus etkin Debug **707/707**, ilgili Release **178/178**; Release build **0 uyarı / 0 hata**. Corpus'un 18 girdi hash'i ve sekiz raporun alan/ref/kanıt sonuçları ayrıca doğrulandı. Corpus'suz denemede beş loader testi geçti, dört integration sonucu tekil TRX kayıtlarında `NotExecuted` idi.
+- Bu kapı 6000.4.0f1 / Linux64 prefab AssetBundle dilimidir. Kaynak sahne Editor'da yeniden açıldı; serialize edilmiş sahne bundle'ı veya AssetRipper çıktısının Editor'a geri import'u test edilmedi. Eski Mono/player çıktıları, managed-reference graph, başka sürüm/platformlar, P13 GUID/fileID/import ve IL2CPP recovery kapıları açık kalıyor.
+
+Sözleşme, komutlar ve kanıt: [gerçek Unity Editor payload corpus'u](UNITY_EDITOR_PAYLOAD.tr.md).
+
+## 21. Onuncu uygulama paketi — P13 çıkarılan projenin Editor import'u
+
+- P09 gerçek corpus'u normal `ExportHandler.Process/Export` hattından geçirilip çıkan `ExportedProject`, Unity **6000.4.0f1** Editor'da gerçekten açıldı. TypeTree ve assembly şeması yolları ayrı pozitif vakalar olarak doğrulandı. Runtime kaynak değiştirilmedi; orijinal `Assembly-CSharp.dll` Assets'e verilmedi. Üretim exporter'ında yeni düzeltme gerekmedi.
+- Bağımsız Editor checker, decompile edilmiş C# kodunun derlenmesini, missing-script slot'larını, namespace/type/assembly ve MonoScript GUID/local ID bağını, altı seçili alan değerini ve beş PPtr hedefini kontrol ediyor. Yerel hedef nesne eşitliğiyle, harici TextAsset GUID/yol/içerikle doğrulanıyor.
+- Üç negatif kontrol script `.meta` GUID'sini, bir YAML alanını ve TextAsset GUID'sini değiştiriyor. Her biri yalnız doğru hata kategorisi ve gerçek JSON/exit code ile geçiyor; compiler/başlatma hatası başarı sayılmıyor.
+- Import öncesi Assets/Packages/ProjectSettings snapshot'ı, 18 kaynak corpus girdisi, mutation/hash kayıtları ve Editor sonuç JSON'ları korunuyor. CI yalnız bu kanıtları alıyor; geçici Library cache'leri ve tam Editor log'ları yüklenmiyor. Executable seçeneği yoksa beş vaka açıkça `Skipped/NotRun`.
+- Doğrulama: Debug **712/712**, ilgili Release **183/183**; Release build **0 uyarı / 0 hata**. On vaka raporunun hash/sonuçları, pozitif script/meta/YAML ve TextAsset GUID/fileID bağları ayrıca kontrol edildi. Üç negatif sınıf iki runner'da da beklendiği gibi reddedildi.
+- Bu ilk Editor kapısı tek Linux64 MonoBehaviour prefab fixture'ına aittir. Sahne bundle'ı, prefab varyant/çoklu sahne grafikleri, asmdef/üçüncü taraf referansları, managed-reference registry, eski Mono profilleri, Play Mode ve IL2CPP kapıları açık kalıyor. Ürün/SystemTester genel oyun kodu yürütme özelliği kazanmış sayılmıyor.
+
+Sözleşme, komutlar ve sınırlar: [çıkarılan projenin Unity Editor roundtrip'i](UNITY_EDITOR_ROUNDTRIP.tr.md).
+
+## 22. On birinci uygulama paketi — P09/P13 managed-reference grafiği
+
+- Unity **6000.4.0f1 / Linux64** üzerinde kalıtılmış SerializeReference alanı, iki polimorfik düğüm, ortak referans/list/inline alanları, null ve iki düğümlü döngü içeren kaynak sahibi olduğumuz corpus üretildi. RID **4294967419** ile 64 bit kimlik, registry içindeki yerel/harici Unity nesne hedefleri ve iki TypeTree modu kapsandı. Kaynak sahne/prefab readback'i gerçek nesne eşitliğiyle kontrol edildi; 20 girdi SHA-256 manifestinde korundu.
+- İki gerçek klon regresyonu somut veri kaybını gösterdi: `ReferencedObject.data` okunurken çözümlenmiş olsa da klonlamada boş yer tutucu şema kullanılıyor, alanlar ve PPtr dependency'leri siliniyordu. `SerializableValue.CopyValues`, bu dinamik alanda gerçek `SerializableStructure` şemasıyla deep-clone yapıyor. PPtr dönüşümü ve özgün/klon bağımsızlığı korunuyor; null kayıt boş kalıyor. Üç bağımsız regresyon Editor olmadan CI'da çalışır.
+- Dört gerçek bundle vakasında yedi RID, üç registry kaydı (null dahil), iki somut düğüm ve iki dependency doğrulandı. Harici bundle yokken PPtr ID'leri değişmiyor. İki ek klon vakası aynı oracle'ı sağlıyor.
+- Normal export'tan çıkan iki proje Editor'da açıldı; çıkarılan C# derlendi, script bağı/missing-script sayısı, canlı ortak kimlik/döngü, alt türe ait alanlar ve Unity hedefleri eşleşti. Alias RID, geri kenar ve alan değeri değişiklikleri üç ayrı negatif kontrolle yakalandı. Ortak Editor runner/snapshot kodu mevcut scalar/PPtr testleriyle paylaşıldı.
+- Doğrulama: Debug **726/726**, ilgili Release **197/197**; solution Release build **0 uyarı / 0 hata**. Yeni kategori iki konfigürasyonda **14/14** geçti. Kurulumsuz denemede üç regresyon geçti, 11 gerçek kontrol tekil TRX kayıtlarında `NotExecuted` idi. 18 rapor ve 550 corpus/snapshot hash'i, mutation geri dönüş hash'leri ve script GUID/fileID bağları ayrıca doğrulandı. Varsayılan üreticiden yeni 20 dosyalı scalar/PPtr corpus'u üretildi; mevcut iki kategori bu girdilerle **14/14** geçti.
+- Planın tamamı açık kalıyor. Bu kapı registry format 2 / tek sürüm-platform prefab'ına aittir; format 1, duplicate/dangling RID, eksik/yeniden adlandırılmış managed tür, çoklu host scope'u, sahne bundle'ı, daha geniş sürüm matrisi, Play Mode ve IL2CPP kabul kapıları tamamlanmış sayılmaz.
+
+Sözleşme, üretim komutu ve sınırlar: [managed-reference grafiği ve klon düzeltmesi](UNITY_MANAGED_REFERENCES.tr.md).
+
+## 23. On ikinci uygulama paketi — P09 managed-reference RID/tür tutarlılığı
+
+- Tam bayt tüketimine rağmen kabul edilen duplicate ve dangling RID'ler yeniden üretildi. Düzeltme öncesi 16 kontrollü vakadan 11'i, iki şemadaki 8 gerçek Editor nesnesi vakasından 6'sı yanlış başarıyı gösterdi. Eksik tür için var olan ham koruma yolu geçiyordu. Ek iki regresyon, sınıf/assembly adı boş pozitif RID kayıtlarının da null gibi kabul edildiğini gösterdi.
+- Format 2'de okuma sonuna host başına RID kümesi kontrolü eklendi. Duplicate 0+ RID, root/list/inline/registry verisindeki karşılıksız managed-reference alanları ve eksik sınıf/assembly adı reddediliyor. İleri referans ve döngü kenarları takip edilmeden doğrulanıyor; farklı host'ta aynı RID geçerli, başka host tablosu eksik kaydı tamamlamıyor. RID 0, 64 bit kimlik, global namespace ve mevcut -1/-2 sentinel davranışı korunuyor. Format 1'e yeni kural uygulanmıyor.
+- Hata mevcut `UnreadableStructure` / Partial durumuna bağlanıyor; segment/offset/diagnostic korunuyor ve dependency kapsamı Incomplete kalıyor. İki exporter raw opt-in kapalıyken de `.bin` koruyup genel başarısızlığı bildiriyor; bağımsız TextAsset devam ediyor. Eksik tür için isim veya alan tahmini yapılmadı.
+- 20 kontrollü ve 12 gerçek corpus vakası eklendi. Gerçek nesne kopyasında yalnız bilinen RID veya aynı uzunluktaki sınıf adı değiştiriliyor; bundle'lara yazılmıyor. Processing + iki export yolu iki şemada sınandı. Mevcut gerçek prefab Editor kapıları da tekrar geçti.
+- Doğrulama: Debug **758/758**, ilgili Release **229/229** (son core 222 + IO 3 + GUI 4); Release build **0 hata / 1 mevcut Animator TODO uyarısı**. Yeni kategori iki konfigürasyonda **32/32** geçti; corpus'suz 20 vaka geçti, 12 vaka tekil TRX'te NotExecuted. 24 rapordaki **552** input/nesne/segment hash'i, mutation sınırları ve özgün corpus'un değişmediği ayrıca doğrulandı.
+- İlk Release core koşusundaki tek Unity native named-pipe çökmesi başarısız sayıldı ve kaydı korundu. Aynı kaynak/prefab hash'leriyle tekrar açılan proje beklenen negatif döngü raporunu verdi; ardından değişmeyen derlenmiş kodla core seti **222/222** geçti. Harness'a hataları gizleyen otomatik retry eklenmedi.
+- Planın tamamı bitmedi. Format 1, geniş sürüm/şema matrisi, eksik türün alan bazında recovery'si, büyük grafik ölçümleri, sahne bundle'ı, Play Mode ve IL2CPP kabul kapıları açık. Sonraki P13 dilimi sahne bundle'ının normal export sonrası Editor'da açılmasıdır.
+
+Sözleşme, komutlar ve sınırlar: [managed-reference tablosunda yanlış başarıyı önleme](MANAGED_REFERENCE_VALIDATION.tr.md).

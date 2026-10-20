@@ -21,6 +21,8 @@ public abstract class AssetCollection : IReadOnlyCollection<IUnityObjectBase>
 
 	public Bundle Bundle { get; }
 	public string Name { get; protected set; } = string.Empty;
+	/// <summary>The source serialized file name before dependency-identifier normalization. Empty for generated collections.</summary>
+	public string OriginalName { get; protected set; } = string.Empty;
 	public string FilePath { get; set; } = string.Empty;
 	/// <summary>
 	/// The list of dependencies for this collection.

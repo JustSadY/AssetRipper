@@ -4,7 +4,7 @@ using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 
 namespace AssetRipper.Export.Scripts;
 
-public class ILSpyWholeProjectDecompiler : WholeProjectDecompiler
+public partial class ILSpyWholeProjectDecompiler : WholeProjectDecompiler
 {
 	protected FileSystem FileSystem { get; }
 	private readonly object fileSystemSync = new();

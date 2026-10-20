@@ -8,6 +8,7 @@ using AssetRipper.Assets.Traversal;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Structure.Assembly.Managers;
 using AssetRipper.IO.Endian;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.SourceGenerated.Classes.ClassID_114;
 
 namespace AssetRipper.Import.Structure.Assembly.Serializable;
@@ -48,15 +49,20 @@ public sealed class UnloadedStructure : UnityAssetBase, IDeepCloneable
 	/// The segment of data for this structure.
 	/// </summary>
 	public ReadOnlyArraySegment<byte> StructureData { get; }
+	public int? ObjectByteOffset { get; }
 	private readonly IRawObjectSnapshot? rawSnapshot;
 
-	public UnloadedStructure(IMonoBehaviour monoBehaviour, IAssemblyManager assemblyManager, ReadOnlyArraySegment<byte> structureData, IRawObjectSnapshot? rawSnapshot = null)
+	public UnloadedStructure(IMonoBehaviour monoBehaviour, IAssemblyManager assemblyManager, ReadOnlyArraySegment<byte> structureData,
+		IRawObjectSnapshot? rawSnapshot = null, int? objectByteOffset = null)
 	{
 		MonoBehaviour = monoBehaviour;
 		AssemblyManager = assemblyManager;
 		StructureData = structureData;
 		this.rawSnapshot = rawSnapshot;
+		ObjectByteOffset = objectByteOffset;
 	}
+
+	internal UnloadedStructure Rebind(IMonoBehaviour target) => new(target, AssemblyManager, StructureData, rawSnapshot, ObjectByteOffset);
 
 	private void ThrowIfNotStructure()
 	{
@@ -70,35 +76,48 @@ public sealed class UnloadedStructure : UnityAssetBase, IDeepCloneable
 	{
 		ThrowIfNotStructure();
 		string? failureReason = null;
-		SerializableStructure? structure = MonoBehaviour.ScriptP?.GetBehaviourType(AssemblyManager, out failureReason)?.CreateSerializableStructure();
-		if (structure is not null)
+		SerializableStructureReadResult? result = null;
+		try
 		{
-			EndianSpanReader reader = new EndianSpanReader(StructureData, MonoBehaviour.Collection.EndianType);
-			if (structure.TryRead(ref reader, MonoBehaviour, AssemblyManager))
+			SerializableStructure? structure = MonoBehaviour.ScriptP?.GetBehaviourType(AssemblyManager, out failureReason)?.CreateSerializableStructure();
+			if (structure is not null)
 			{
-				MonoBehaviour.Structure = structure;
-				rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Parsed);
-				return structure;
+				EndianSpanReader reader = new EndianSpanReader(StructureData, MonoBehaviour.Collection.EndianType);
+				if (structure.TryRead(ref reader, MonoBehaviour, AssemblyManager, out result))
+				{
+					MonoBehaviour.Structure = structure;
+				}
 			}
 		}
-		else if (failureReason is not null)
+		catch (Exception exception) when (ExceptionPolicy.IsRecoverableInput(exception))
+		{
+			failureReason = exception.ToString();
+		}
+		// Journal IO is outside the recoverable source-read boundary.
+		if (MonoBehaviour.Structure is SerializableStructure loaded)
+		{
+			rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Parsed);
+			return loaded;
+		}
+		if (failureReason is not null)
 		{
 			Logger.Warning(LogCategory.Import, $"Could not read MonoBehaviour structure for `{MonoBehaviour.ScriptP?.GetFullName()}`. Reason: {failureReason}");
 		}
 
-		MonoBehaviour.Structure = null;
-		rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Partial, failureReason ?? "MonoBehaviour script is missing or its fields do not match the serialized payload.");
+		result ??= new(0, StructureData.Count, failureReason ?? "MonoBehaviour script is missing or its schema could not be resolved.");
+		MonoBehaviour.Structure = new UnreadableStructure(StructureData, result, "Assembly", ObjectByteOffset);
+		rawSnapshot?.ReportReadStatus(RawObjectReadStatus.Partial, result.Diagnostic);
 		return null;
 	}
 
 	private UnityAssetBase LoadStructureOrStatelessAsset()
 	{
-		return (UnityAssetBase?)LoadStructure() ?? StatelessAsset.Instance;
+		return (UnityAssetBase?)LoadStructure() ?? MonoBehaviour.Structure as UnityAssetBase ?? StatelessAsset.Instance;
 	}
 
 	public IUnityAssetBase DeepClone(PPtrConverter converter)
 	{
-		return LoadStructure()?.DeepClone(converter) ?? (IUnityAssetBase)StatelessAsset.Instance;
+		return LoadStructure()?.DeepClone(converter) ?? MonoBehaviour.Structure as UnreadableStructure ?? (IUnityAssetBase)StatelessAsset.Instance;
 	}
 
 	#region UnityAssetBase Overrides

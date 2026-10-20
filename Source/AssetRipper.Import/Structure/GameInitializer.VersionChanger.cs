@@ -101,7 +101,7 @@ internal sealed partial record class GameInitializer
 				IMonoBehaviour newMonoBehaviour = (IMonoBehaviour)replacement;
 				if (monoBehaviour.Structure is UnloadedStructure unloadedStructure)
 				{
-					newMonoBehaviour.Structure = new UnloadedStructure(newMonoBehaviour, unloadedStructure.AssemblyManager, unloadedStructure.StructureData);
+					newMonoBehaviour.Structure = unloadedStructure.Rebind(newMonoBehaviour);
 				}
 				else
 				{

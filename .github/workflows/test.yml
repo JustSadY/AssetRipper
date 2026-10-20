@@ -32,4 +32,11 @@ jobs:
             TestResults/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/managed-roundtrip/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-reference/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/type-recovery/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/monobehaviour-payload/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-editor-payload/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-editor-roundtrip/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-editor-roundtrip/*/Evidence/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-managed-reference/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-managed-reference/*/Evidence/**
           retention-days: 7

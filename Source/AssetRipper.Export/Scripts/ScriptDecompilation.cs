@@ -4,6 +4,7 @@ using AssetRipper.Import.Structure.Assembly;
 using ICSharpCode.Decompiler;
 using ICSharpCode.Decompiler.CSharp.ProjectDecompiler;
 using System.Runtime.ExceptionServices;
+using System.Reflection.Metadata.Ecma335;
 
 namespace AssetRipper.Export.Scripts;
 
@@ -43,18 +44,36 @@ public static class ScriptDecompilation
 			AddDiagnostic(exception);
 		}
 
+		IReadOnlyList<ScriptFileRecoveryResult> recoveries = decompiler is ILSpyWholeProjectDecompiler supported && decompiler.Errors.Count != 0
+			? supported.RecoverFailedTypeFiles(resolver.Resolve(assembly), outputDirectory) : [];
+
 		foreach (AssemblyResolutionDiagnostic diagnostic in resolver.Diagnostics.Skip(resolutionStart).Where(d => d.IsFailure))
 		{
 			diagnostics.Add(new(null, diagnostic.RequestedIdentity, $"Assembly resolution failed: {diagnostic.Kind}"));
 		}
-		return new(assembly.Name ?? string.Empty, outputDirectory, diagnostics) { Identity = AssemblyIdentity.From(assembly).ToString() };
+		return new(assembly.Name ?? string.Empty, outputDirectory, diagnostics)
+		{
+			Identity = AssemblyIdentity.From(assembly).ToString(),
+			TypeRecoveries = recoveries,
+		};
 
 		void AddDiagnostic(Exception exception)
 		{
-			DecompilerException? decompilerException = exception as DecompilerException;
-			diagnostics.Add(new(decompilerException?.FileName, decompilerException?.DecompiledEntity?.FullName, exception.ToString()));
+			diagnostics.Add(CreateDiagnostic(exception));
 			Logger.Error(LogCategory.Export, $"Failed to decompile '{assembly.Name}'.", exception);
 		}
+	}
+
+	internal static ScriptDecompilationDiagnostic CreateDiagnostic(Exception exception, string stage = "WholeProject")
+	{
+		DecompilerException? decompilerException = exception as DecompilerException;
+		var entity = decompilerException?.DecompiledEntity;
+		return new(decompilerException?.FileName, entity?.FullName, exception.ToString())
+		{
+			Stage = stage,
+			MetadataToken = entity is null || entity.MetadataToken.IsNil ? null : $"0x{MetadataTokens.GetToken(entity.MetadataToken):X8}",
+			ContainingType = (entity as ICSharpCode.Decompiler.TypeSystem.ITypeDefinition ?? entity?.DeclaringTypeDefinition)?.ReflectionName,
+		};
 	}
 
 	private static bool IsRecoverable(Exception exception)

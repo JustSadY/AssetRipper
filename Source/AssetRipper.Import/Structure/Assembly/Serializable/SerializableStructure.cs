@@ -6,6 +6,7 @@ using AssetRipper.Assets.Traversal;
 using AssetRipper.Import.Logging;
 using AssetRipper.IO.Endian;
 using AssetRipper.IO.Files.SerializedFiles;
+using AssetRipper.IO.Files.Exceptions;
 using AssetRipper.SerializationLogic;
 using AssetRipper.SourceGenerated.Classes.ClassID_114;
 
@@ -32,6 +33,7 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 	public void Read(ref EndianSpanReader reader, UnityVersion version, TransferInstructionFlags flags, ITypeResolver resolver)
 	{
 		Version = version;
+		SerializableStructure? registry = null;
 		for (int i = 0; i < Fields.Length; i++)
 		{
 			SerializableType.Field etalon = Type.Fields[i];
@@ -39,7 +41,8 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 			{
 				if (etalon.Type == ManagedReferenceTypes.Registry)
 				{
-					Fields[i].AsAsset = ManagedReferenceRegistryReader.Read(ref reader, version, flags, Depth + 1, resolver);
+					registry = ManagedReferenceRegistryReader.Read(ref reader, version, flags, Depth + 1, resolver);
+					Fields[i].AsAsset = registry;
 					if (etalon.Align)
 					{
 						reader.Align();
@@ -51,6 +54,7 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 				}
 			}
 		}
+		if (registry is not null) ManagedReferenceGraphValidator.Validate(this, registry);
 	}
 
 	public void Write(AssetWriter writer)
@@ -134,21 +138,29 @@ public sealed class SerializableStructure : UnityAssetBase, IDeepCloneable
 	}
 
 	public bool TryRead(ref EndianSpanReader reader, IMonoBehaviour monoBehaviour, ITypeResolver resolver)
+		=> TryRead(ref reader, monoBehaviour, resolver, out _);
+
+	public bool TryRead(ref EndianSpanReader reader, IMonoBehaviour monoBehaviour, ITypeResolver resolver,
+		out SerializableStructureReadResult result)
 	{
+		int start = reader.Position;
 		try
 		{
 			Read(ref reader, monoBehaviour.Collection.Version, monoBehaviour.Collection.Flags, resolver);
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (ExceptionPolicy.IsRecoverableInput(ex))
 		{
 			LogMonoBehaviorReadException(this, ex);
+			result = new(reader.Position - start, reader.Length - start, ex.ToString());
 			return false;
 		}
 		if (reader.Position != reader.Length)
 		{
 			LogMonoBehaviourMismatch(this, reader.Position, reader.Length);
+			result = new(reader.Position - start, reader.Length - start, $"Layout mismatch: read {reader.Position - start} of {reader.Length - start} script bytes.");
 			return false;
 		}
+		result = new(reader.Position - start, reader.Length - start, null);
 		return true;
 	}
 

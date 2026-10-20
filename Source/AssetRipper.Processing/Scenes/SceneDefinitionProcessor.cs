@@ -119,7 +119,16 @@ public sealed class SceneDefinitionProcessor : IAssetProcessor
 			}
 			else
 			{
-				sceneDefinition = SceneDefinition.FromName(sceneCollection.Name, guid);
+				// Streamed scene archives can omit the AssetBundle object carrying
+				// the original Assets path. Their serialized entry still retains the
+				// scene's spelling as BuildPlayer-<scene>; keep dependency IDs normalized.
+				const string prefix = "BuildPlayer-";
+				string original = sceneCollection.OriginalName;
+				string name = sceneCollection.Bundle is SerializedBundle && original.StartsWith(prefix, StringComparison.Ordinal)
+					&& original.Length > prefix.Length && original.IndexOfAny(['/', '\\', '\0']) < 0
+					&& original[prefix.Length..] is not ("." or "..")
+					? original[prefix.Length..] : sceneCollection.Name;
+				sceneDefinition = SceneDefinition.FromName(name, guid);
 			}
 			sceneDefinition.AddCollection(sceneCollection);
 			sceneDefinitions.Add(sceneDefinition);

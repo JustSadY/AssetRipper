@@ -981,6 +981,14 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 			case 0:
 				if (etalon.Type.Type == PrimitiveType.Complex)
 				{
+					if (etalon.Type == ManagedReferenceTypes.ReferencedObjectData && source.CValue is SerializableStructure referencedData)
+					{
+						// The registry's data field is only a placeholder. Its actual
+						// layout was resolved from the preceding managed type at read time.
+						PValue = default;
+						CValue = referencedData.DeepClone(converter);
+						break;
+					}
 					IUnityAssetBase thisStructure = etalon.Type.CreateInstance(depth + 1, converter.TargetCollection.Version);
 					if (source.CValue is IUnityAssetBase sourceStructure)
 					{
@@ -1206,9 +1214,16 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 				IUnityAssetBase[] structures = (IUnityAssetBase[])CValue;
 				for (int i = 0; i < structures.Length; i++)
 				{
-					foreach ((string path, PPtr pptr) in structures[i].FetchDependencies())
+					if (structures[i] is IPPtr pointer)
 					{
-						yield return ($"{etalon.Name}[{i}].{path}", pptr);
+						yield return ($"{etalon.Name}[{i}]", new PPtr(pointer));
+					}
+					else
+					{
+						foreach ((string path, PPtr pptr) in structures[i].FetchDependencies())
+						{
+							yield return ($"{etalon.Name}[{i}].{path}", pptr);
+						}
 					}
 				}
 			}
@@ -1216,9 +1231,16 @@ public record struct SerializableValue([property: DebuggerBrowsable(DebuggerBrow
 			{
 				Debug.Assert(etalon.ArrayDepth == 0);
 				IUnityAssetBase structure = (IUnityAssetBase)CValue;
-				foreach ((string path, PPtr pptr) in structure.FetchDependencies())
+				if (structure is IPPtr pointer)
 				{
-					yield return ($"{etalon.Name}.{path}", pptr);
+					yield return (etalon.Name, new PPtr(pointer));
+				}
+				else
+				{
+					foreach ((string path, PPtr pptr) in structure.FetchDependencies())
+					{
+						yield return ($"{etalon.Name}.{path}", pptr);
+					}
 				}
 			}
 		}

@@ -104,6 +104,23 @@ evidence in CI. This is a controlled .NET fixture profile, not Unity API or Edit
 validation. The SystemTester does not execute recovered game code.
 See [the managed roundtrip contract](../../docs/MANAGED_ROUNDTRIP.tr.md).
 
+The `UnityManagedReference` test category adds a source-owned Unity 6000.4.0f1
+SerializeReference graph corpus: polymorphic nodes, shared identities, a two-node
+cycle, nulls, 64-bit RIDs, and Unity object targets inside registry data. It also
+covers the dynamic registry-data deep-clone fix without requiring Unity. The
+optional Editor checks reimport actual exported C# and prefab data and reject
+three independently damaged graphs. See
+[the managed-reference contract](../../docs/UNITY_MANAGED_REFERENCES.tr.md) for
+generation, environment variables, evidence, and the remaining format/version
+limits. SystemTester does not run arbitrary recovered game code.
+
+The `ManagedReferenceValidation` category verifies format-2 RID uniqueness,
+host-local reference targets, and required type names. It adds 20 always-on
+controlled cases and 12 optional cases that mutate copied objects from the real
+Editor corpus. Invalid graphs retain raw script bytes, report incomplete
+dependencies, and fail both export modes while independent assets continue.
+See [the registry validation contract](../../docs/MANAGED_REFERENCE_VALIDATION.tr.md).
+
 `ScriptLanguageProfile` tests exercise both export paths and their generated
 language settings. The optional `UnityReferenceProfile` tests recompile a trusted
 MonoBehaviour fixture against 20 hash-pinned reference images from Unity
@@ -112,6 +129,60 @@ installation's `Editor/Data` directory. Without it, the five installation-depend
 checks are explicitly skipped; missing or mismatched files with a configured path
 fail the check. The fixture does not execute native Unity calls or validate Editor
 import. See [the language/profile contract](../../docs/SCRIPT_LANGUAGE_PROFILE.tr.md).
+
+When ILSpy replaces a shared C# file entirely with its error comment, the script
+exporter retries each original top-level type independently, keeping nested types
+with their parent. Successfully emitted types use the original path or distinct
+token-based filenames. The original error file is retained as a hash-reported
+`.txt` sidecar under `_DecompilationEvidence`. Existing partial source is not
+replaced, and resource-backed companion maps are conservatively skipped.
+
+Each assembly's `TypeRecoveries` records attempts, diagnostics and relative output
+paths; `RecoveredTypeCount` counts types emitted without decompiler errors. The
+original errors remain, so partial recovery still fails the export. This count
+does not imply compilation or behavior validation. `ScriptTypeRecovery` tests
+verify both exporters using deliberately damaged source-owned metadata, C#
+recompilation and five known behavior observations. Their evidence is uploaded
+in CI. See [the type recovery contract](../../docs/TYPE_RECOVERY.tr.md).
+
+Failed MonoBehaviour field reads now retain an `UnreadableStructure` with the
+original byte segment and incomplete dependency coverage. Before collection
+preparation, both exporters resolve deferred reads and record failures in
+`collection-export-report.json` under `MonoBehaviourFailures`. These failures
+make the export unsuccessful even when opt-in raw capture is disabled. The
+failed segment is saved to `MonoBehaviourRecovery/<sha256>.bin` under the export
+root; `PayloadScope` distinguishes script fields from an object whose header
+could not be read. This is not a whole-input archive. Existing conflicting
+recovery output is not overwritten.
+
+Script PPtr values now participate directly in dependency traversal, including
+pointer arrays and nested fields. The `MonoBehaviourPayload` tests use independent
+hand-written bytes and TypeTree/assembly schemas to check field values, pointer
+paths and selected targets. They cover controlled Unity-name shims, not an
+Editor-generated scene or runtime. See [the payload contract](../../docs/MONOBEHAVIOUR_PAYLOAD.tr.md).
+
+`TestProjects/build_payload_fixture.py` additionally generates an actual Unity
+6000.4.0f1 scene/prefab and Linux64 AssetBundles with and without type trees in a
+disposable project. Set `ASSETRIPPER_UNITY_PAYLOAD_FIXTURE` to that corpus and
+`ASSETRIPPER_UNITY_EDITOR_DATA` to the pinned installation to enable four
+`UnityEditorPayload` integration checks. They compare fields and resolved PPtr
+targets with the Editor's `SerializedObject` oracle; omitting the external bundle
+must preserve the original pointer IDs. Five loader/integrity checks run without
+the corpus. Missing configuration skips the four integration checks; invalid
+configured inputs fail. This does not import an AssetRipper-exported project into
+the Editor. See [the Editor payload contract](../../docs/UNITY_EDITOR_PAYLOAD.tr.md).
+
+The separate optional `UnityEditorRoundTrip` category runs actual processing and
+Unity-project export, then opens the generated project in Unity 6000.4.0f1.
+Set `ASSETRIPPER_UNITY_EDITOR_EXECUTABLE` as well as the two corpus/reference
+variables above. Both schema paths must recompile with no missing scripts and
+preserve the known serialized fields and reference targets. Three negative cases
+alter a script GUID, a value and an external reference GUID; each must produce
+its specific Editor validation failure. Without the executable option all five
+checks are explicitly skipped. Curated source/input snapshots and JSON reports
+are retained without publishing Editor caches or full logs. This is a trusted
+fixture test, not a general game-code execution path in SystemTester.
+See [the Editor roundtrip contract](../../docs/UNITY_EDITOR_ROUNDTRIP.tr.md).
 
 ## File Structure
 

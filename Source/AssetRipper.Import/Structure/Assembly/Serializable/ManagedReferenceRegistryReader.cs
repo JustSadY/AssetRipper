@@ -92,6 +92,11 @@ internal static class ManagedReferenceRegistryReader
 		{
 			long referenceId = reader.ReadInt64();
 			SerializableStructure managedType = ReadManagedType(ref reader, version, flags, depth + 1, resolver);
+			if (referenceId >= 0 && (managedType[ManagedReferenceTypes.ClassFieldName].AsString.Length == 0
+				|| managedType[ManagedReferenceTypes.AssemblyFieldName].AsString.Length == 0))
+			{
+				throw new InvalidDataException($"Managed reference ID {referenceId} has an incomplete type: class and assembly names are required.");
+			}
 			referencedObjects[i] = ReadReferencedObject(ref reader, version, flags, depth, resolver, managedType, referenceId);
 		}
 		return referencedObjects;

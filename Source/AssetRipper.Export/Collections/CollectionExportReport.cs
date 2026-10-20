@@ -1,6 +1,10 @@
 using AssetRipper.Assets;
 using AssetRipper.Assets.Bundles;
 using AssetRipper.IO.Files;
+using AssetRipper.Import.Structure.Assembly;
+using AssetRipper.Import.Structure.Assembly.Serializable;
+using AssetRipper.SourceGenerated.Classes.ClassID_114;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -16,7 +20,37 @@ public sealed class CollectionExportReport
 	public int ExportedCollectionCount { get; set; }
 	public List<ImportFailure> ImportFailures { get; } = [];
 	public List<CollectionExportFailure> Failures { get; } = [];
-	public bool Succeeded => Completed && ImportFailures.Count == 0 && Failures.Count == 0;
+	public List<MonoBehaviourStructureFailure> MonoBehaviourFailures { get; } = [];
+	public bool Succeeded => Completed && ImportFailures.Count == 0 && Failures.Count == 0 && MonoBehaviourFailures.Count == 0;
+
+	/// <summary>Resolve deferred reads before export; failed script fields cannot imply complete dependencies.</summary>
+	public void CaptureMonoBehaviourFailures(GameBundle bundle, string outputDirectory, FileSystem fileSystem)
+	{
+		foreach (IMonoBehaviour asset in bundle.FetchAssets().OfType<IMonoBehaviour>())
+		{
+			asset.LoadStructure();
+			if (asset.Structure is not UnreadableStructure failed) continue;
+			string hash = Convert.ToHexStringLower(SHA256.HashData(failed.Data));
+			string relative = Path.Join("MonoBehaviourRecovery", hash + ".bin");
+			string directory = fileSystem.Path.Join(outputDirectory, "MonoBehaviourRecovery");
+			if (fileSystem.File.Exists(directory)) throw new IOException($"Recovery directory conflicts with an existing file: {directory}");
+			fileSystem.Directory.Create(directory);
+			string path = fileSystem.Path.Join(outputDirectory, relative);
+			if (fileSystem.Directory.Exists(path)) throw new IOException($"Recovery payload conflicts with an existing directory: {path}");
+			if (fileSystem.File.Exists(path))
+			{
+				if (!fileSystem.File.ReadAllBytes(path).AsSpan().SequenceEqual(failed.Data))
+					throw new InvalidDataException($"Existing MonoBehaviour recovery payload has different bytes: {path}");
+			}
+			else
+			{
+				fileSystem.File.WriteAllBytes(path, failed.Data.ToArray());
+			}
+			MonoBehaviourFailures.Add(new(asset.Collection.Name, asset.Collection.FilePath, asset.PathID,
+				failed.SchemaSource, failed.PayloadScope, failed.ObjectByteOffset, failed.ReadResult.BytesRead, failed.Data.Count,
+				relative, hash, failed.DependencyCoverage, failed.ReadResult.Diagnostic ?? "MonoBehaviour structure could not be read."));
+		}
+	}
 
 	public static CollectionExportReport Create(string exportKind, GameBundle bundle)
 	{
@@ -47,6 +81,11 @@ public sealed record ImportFailure(string Name, string SourcePath, string Phase,
 /// <summary>The asset identifies the preparation seed, not every member of a grouped export.</summary>
 public sealed record CollectionExportFailure(string Phase, string CollectionName, string SourceCollection, string SourcePath,
 	long PathId, int ClassId, string? ExceptionType, string Diagnostic);
+
+/// <summary>Raw payload paths are relative to the export root. Missing fields/references are not inferred.</summary>
+public sealed record MonoBehaviourStructureFailure(string SourceCollection, string SourcePath, long PathId,
+	string SchemaSource, string PayloadScope, int? ObjectByteOffset, int BytesRead, int ByteLength,
+	string PayloadPath, string Sha256, string DependencyCoverage, string Diagnostic);
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(CollectionExportReport))]

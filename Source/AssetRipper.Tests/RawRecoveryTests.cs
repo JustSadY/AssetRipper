@@ -141,7 +141,7 @@ public class RawRecoveryTests
 		Assert.That(store.GetSummary().FailedObjectCount, Is.EqualTo(truncated ? 1 : 0));
 		if (truncated)
 		{
-			Assert.That(parsed.Structure, Is.Null);
+			Assert.That(parsed.Structure, Is.TypeOf<UnreadableStructure>());
 		}
 		else
 		{
@@ -164,7 +164,7 @@ public class RawRecoveryTests
 		Assert.That(parsed.Structure, Is.TypeOf<UnloadedStructure>());
 		Assert.That(store.GetSummary().PendingObjectCount, Is.EqualTo(1));
 		Assert.That(((UnloadedStructure)parsed.Structure!).LoadStructure(), Is.Null);
-		Assert.That(parsed.Structure, Is.Null);
+		Assert.That(parsed.Structure, Is.TypeOf<UnreadableStructure>());
 		Assert.That(store.GetSummary().PendingObjectCount, Is.Zero);
 		Assert.That(store.GetSummary().FailedObjectCount, Is.EqualTo(1));
 		Assert.That(fs.File.ReadAllBytes(OnlyPayload(store, fs)), Is.EqualTo(payload));

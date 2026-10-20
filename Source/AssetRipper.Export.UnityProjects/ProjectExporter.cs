@@ -81,6 +81,7 @@ public sealed partial class ProjectExporter
 	{
 		LastExportSucceeded = false;
 		CollectionExportReport report = LastReport = CollectionExportReport.Create("UnityProject", fileCollection);
+		report.CaptureMonoBehaviourFailures(fileCollection, options.ExportRootPath, fileSystem);
 		EventExportPreparationStarted?.Invoke();
 		List<PreparedExportCollection> collections = CreateCollections(fileCollection, report);
 		report.Write(options.ExportRootPath, fileSystem);

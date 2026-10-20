@@ -135,6 +135,7 @@ public sealed class PrimaryContentExporter
 	{
 		LastExportSucceeded = false;
 		CollectionExportReport report = LastReport = CollectionExportReport.Create("PrimaryContent", fileCollection);
+		report.CaptureMonoBehaviourFailures(fileCollection, settings.ExportRootPath, fileSystem);
 		gameData.RawRecovery?.WriteReference(settings.ExportRootPath, fileSystem);
 		List<PreparedCollection> collections = CreateCollections(fileCollection, report);
 		report.Write(settings.ExportRootPath, fileSystem);

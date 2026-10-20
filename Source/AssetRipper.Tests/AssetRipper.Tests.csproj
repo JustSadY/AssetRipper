@@ -25,6 +25,9 @@
 		<Compile Remove="Fixtures/UnityScriptSample.cs" />
 		<EmbeddedResource Include="Fixtures/UnityScriptSample.cs" />
 		<EmbeddedResource Include="Fixtures/Unity6000.4.NetStandard21.json" />
+		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperRoundTripValidator.cs" LogicalName="UnityRoundTripValidator.cs" />
+		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperGraphValidator.cs" LogicalName="UnityGraphValidator.cs" />
+		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperSceneValidator.cs" LogicalName="UnitySceneValidator.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
