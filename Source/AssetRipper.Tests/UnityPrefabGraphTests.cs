@@ -2,6 +2,7 @@ using AssetRipper.Assets;
 using AssetRipper.Assets.Bundles;
 using AssetRipper.Assets.Metadata;
 using AssetRipper.Export.Configuration;
+using AssetRipper.Export.UnityProjects;
 using AssetRipper.Import.AssetCreation;
 using AssetRipper.Import.Structure.Assembly;
 using AssetRipper.Import.Structure.Assembly.Serializable;
