@@ -22,7 +22,9 @@ public sealed class SerializedType : SerializedTypeBase, IEquatable<SerializedTy
 
 	private protected override void WriteTypeDependencies(SerializedWriter writer)
 	{
-		writer.WriteArray(TypeDependencies);
+		// Each entry is an endian-aware Int32. The generic array writer does not preserve that wire layout.
+		writer.Write(TypeDependencies.Length);
+		foreach (int dependency in TypeDependencies) writer.Write(dependency);
 	}
 
 	public override bool Equals(object? obj)
@@ -39,6 +41,8 @@ public sealed class SerializedType : SerializedTypeBase, IEquatable<SerializedTy
 			&& OldType.Equals(other.OldType)
 			&& ScriptID == other.ScriptID
 			&& OldTypeHash == other.OldTypeHash
+			&& ExtractedTypeTreeHash == other.ExtractedTypeTreeHash
+			&& IsTypeTreeExtracted == other.IsTypeTreeExtracted
 			&& TypeDependencies.AsSpan().SequenceEqual(other.TypeDependencies);
 	}
 
@@ -51,6 +55,8 @@ public sealed class SerializedType : SerializedTypeBase, IEquatable<SerializedTy
 		hash.Add(OldType);
 		hash.Add(ScriptID);
 		hash.Add(OldTypeHash);
+		hash.Add(ExtractedTypeTreeHash);
+		hash.Add(IsTypeTreeExtracted);
 		foreach (int i in TypeDependencies)
 		{
 			hash.Add(i);

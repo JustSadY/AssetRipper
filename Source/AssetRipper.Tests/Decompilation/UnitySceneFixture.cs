@@ -43,9 +43,9 @@ internal sealed record UnitySceneFixture(string DirectoryPath, EditorFixtureMani
 			File.Copy(Path.Combine(DirectoryPath, file.Path), target);
 		}
 	}
-	public static string EvidenceDirectory(bool stripped, string kind)
+	public static string EvidenceDirectory(string mode, string kind)
 	{
-		string path = Path.Combine(TestContext.CurrentContext.TestDirectory, "TestResults", "unity-scene", $"{(stripped ? "Assembly" : "TypeTree")}-{kind}-{Guid.NewGuid():N}");
+		string path = Path.Combine(TestContext.CurrentContext.TestDirectory, "TestResults", "unity-scene", $"{mode}-{kind}-{Guid.NewGuid():N}");
 		Directory.CreateDirectory(path); return path;
 	}
 }

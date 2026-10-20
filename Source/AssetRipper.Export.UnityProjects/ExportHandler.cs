@@ -139,6 +139,16 @@ public class ExportHandler
 
 		foreach (IPostExporter postExporter in GetPostExporters())
 		{
+			if (projectExporter.LastSelectedAssets is { } selected)
+			{
+				// StreamingAssets are an unindexed directory, not object dependencies.
+				if (postExporter is StreamingAssetsPostExporter) continue;
+				if (postExporter is PathIdMapExporter)
+				{
+					new PathIdMapExporter(selected).DoPostExport(gameData, Settings, fileSystem);
+					continue;
+				}
+			}
 			postExporter.DoPostExport(gameData, Settings, fileSystem);
 		}
 		Logger.Info(LogCategory.Export, "Finished post-export");

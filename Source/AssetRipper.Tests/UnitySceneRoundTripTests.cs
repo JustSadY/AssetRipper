@@ -12,20 +12,21 @@ namespace AssetRipper.Tests;
 [Category("UnityScene"), NonParallelizable]
 public class UnitySceneRoundTripTests
 {
-	[TestCase(false, "None")]
-	[TestCase(true, "None")]
-	[TestCase(false, "MissingScript")]
-	[TestCase(false, "ScalarMismatch")]
-	[TestCase(false, "ReferenceMismatch")]
-	[TestCase(false, "HierarchyMismatch")]
-	public async Task RecoveredSceneOpensWithHierarchyScriptAndReferenceIdentity(bool stripped, string damage)
+	[TestCase("TypeTree", "None")]
+	[TestCase("DisableWriteTypeTree", "None")]
+	[TestCase("AssemblyFallback", "None")]
+	[TestCase("TypeTree", "MissingScript")]
+	[TestCase("TypeTree", "ScalarMismatch")]
+	[TestCase("TypeTree", "ReferenceMismatch")]
+	[TestCase("TypeTree", "HierarchyMismatch")]
+	public async Task RecoveredSceneOpensWithHierarchyScriptAndReferenceIdentity(string mode, string damage)
 	{
 		string? executable = Environment.GetEnvironmentVariable("ASSETRIPPER_UNITY_EDITOR_EXECUTABLE");
 		if (string.IsNullOrWhiteSpace(executable)) Assert.Ignore("Recovered scene Editor import NotRun: set ASSETRIPPER_UNITY_EDITOR_EXECUTABLE.");
 		Assert.That(File.Exists(executable), Is.True, "Configured Unity executable is missing.");
 		UnitySceneFixture fixture = UnitySceneFixture.Require(); using var manager = fixture.CreateManager();
-		var bundle = UnitySceneBundleTests.Load(fixture, manager, stripped);
-		string output = UnitySceneFixture.EvidenceDirectory(stripped, "Editor-" + damage); fixture.CopyInputs(output);
+		var (bundle, schemas) = UnitySceneBundleTests.Load(fixture, manager, mode);
+		string output = UnitySceneFixture.EvidenceDirectory(mode, "Editor-" + damage); fixture.CopyInputs(output);
 		GameData data = new(bundle, bundle.GetMaxUnityVersion(), manager, null);
 		FullConfiguration settings = new(); settings.ExportSettings.ScriptExportMode = ScriptExportMode.Decompiled;
 		ExportHandler handler = new(settings); handler.Process(data);
@@ -39,10 +40,11 @@ public class UnitySceneRoundTripTests
 		string editorDirectory = Path.Combine(project, "Assets", "Editor", "AssetRipperValidation"); Directory.CreateDirectory(editorDirectory);
 		using (Stream source = typeof(UnitySceneRoundTripTests).Assembly.GetManifestResourceStream("UnitySceneValidator.cs")!)
 		using (Stream target = File.Create(Path.Combine(editorDirectory, "AssetRipperSceneValidator.cs"))) source.CopyTo(target);
-		object? mutation = InjectDamage(project, damage); object[] hashes = UnityEditorRoundTripRunner.Snapshot(project, output);
+		object? mutation = InjectDamage(project, output, damage); object[] hashes = UnityEditorRoundTripRunner.Snapshot(project, output);
 		File.WriteAllText(Path.Combine(output, "roundtrip-inputs.json"), JsonSerializer.Serialize(new
 		{
-			SchemaVersion = 1, fixture.Manifest.UnityVersion, SchemaSource = stripped ? "Assembly" : "TypeTree", Damage = damage,
+			SchemaVersion = 1, fixture.Manifest.UnityVersion, SchemaSource = mode == "AssemblyFallback" ? "Assembly" : "TypeTree", BuildMode = mode == "TypeTree" ? "Default" : "DisableWriteTypeTree",
+			ControlledTypeTreeSuppression = mode == "AssemblyFallback", Schemas = schemas, Damage = damage,
 			Mutation = mutation, ExportSucceeded = handler.LastExportSucceeded, BeforeImport = hashes, ReferenceProfile = PinnedUnityReferences.ReadManifest(),
 		}, new JsonSerializerOptions { WriteIndented = true }));
 		var result = await UnityEditorRoundTripRunner.Run(executable!, project, output, "AssetRipperSceneValidator"); using var report = result.Report;
@@ -62,7 +64,7 @@ public class UnitySceneRoundTripTests
 		}
 		UnityEditorRoundTripRunner.RemoveImportCache(project);
 	}
-	private static object? InjectDamage(string project, string damage)
+	private static object? InjectDamage(string project, string output, string damage)
 	{
 		if (damage == "None") return null;
 		string assets = Path.Combine(project, "Assets");
@@ -76,7 +78,10 @@ public class UnitySceneRoundTripTests
 			"HierarchyMismatch" => original.Replace("m_Name: InactiveChild", "m_Name: RenamedInactive", StringComparison.Ordinal),
 			_ => Regex.Replace(original, "(?m)^guid: [0-9a-fA-F]{32}", "guid: " + Guid.NewGuid().ToString("N")),
 		};
-		Assert.That(changed, Is.Not.EqualTo(original)); string hash = FixtureCompiler.Hash(File.ReadAllBytes(file)); File.WriteAllText(file, changed);
+		Assert.That(changed, Is.Not.EqualTo(original));
+		byte[] bytes = File.ReadAllBytes(file); string hash = FixtureCompiler.Hash(bytes);
+		string evidence = Path.Combine(output, "Evidence", "Mutation"); Directory.CreateDirectory(evidence);
+		File.WriteAllBytes(Path.Combine(evidence, "original-file.bin"), bytes); File.WriteAllText(file, changed);
 		return new { Path = Path.GetRelativePath(project, file), OriginalSha256 = hash, ModifiedSha256 = FixtureCompiler.Hash(File.ReadAllBytes(file)) };
 	}
 }

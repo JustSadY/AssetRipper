@@ -80,7 +80,7 @@ public class UnityManagedReferenceTests
 		return asset;
 	}
 
-	private static void AssertGraph(SerializableStructure structure, EditorGraphOracle oracle, IMonoBehaviour asset, bool includeExternal)
+	internal static void AssertGraph(SerializableStructure structure, EditorGraphOracle oracle, IMonoBehaviour asset, bool includeExternal)
 	{
 		Assert.That(structure.Type.Fields.Select(f => f.Name), Is.EqualTo(new[] { "root", "alias", "missing", "items", "inline", "references" }));
 		Assert.That(ReadEdges(structure), Is.EqualTo(oracle.Edges));

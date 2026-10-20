@@ -8,6 +8,7 @@ This is an automated system testing program.
 dotnet run --project Source/AssetRipper.Tools.SystemTester -- --tests /path/to/Corpus --output /path/to/Results --report /path/to/baseline.json
 dotnet run --project Source/AssetRipper.Tools.SystemTester -- /path/to/Game --output /path/to/Results --report /path/to/game.json
 dotnet run --project Source/AssetRipper.Tools.SystemTester -- /path/to/Game --output /path/to/Results --raw-output /path/to/Recovery --report /path/to/recovery.json
+dotnet run --project Source/AssetRipper.Tools.SystemTester -- /path/to/Game --il2cpp-worker /absolute/AssetRipper.Tools.Il2CppWorker.dll --il2cpp-worker-dir /path/to/Jobs --il2cpp-worker-timeout 300 --il2cpp-worker-max-heap 4096 --output /path/to/Results --report /path/to/worker.json
 ```
 
 With no input arguments, the runner uses the existing `../../Tests` corpus layout.
@@ -183,6 +184,111 @@ checks are explicitly skipped. Curated source/input snapshots and JSON reports
 are retained without publishing Editor caches or full logs. This is a trusted
 fixture test, not a general game-code execution path in SystemTester.
 See [the Editor roundtrip contract](../../docs/UNITY_EDITOR_ROUNDTRIP.tr.md).
+
+The `UnityScene` category adds a dedicated scene-bundle corpus generated with
+`TestProjects/build_payload_fixture.py --scenes`. Configure
+`ASSETRIPPER_UNITY_SCENE_FIXTURE`, the pinned Editor data and, for actual reimport,
+the Editor executable. Six reader checks compare five objects, two components
+and 13 pointer fields; seven Editor cases open the exported `.unity` scene and
+reject broken script GUIDs, values, external references and hierarchy. Eight
+scene-name regressions always run. This particular scene corpus retains type
+trees even in the `DisableWriteTypeTree` build; assembly fallback is exercised
+by explicitly withholding MonoBehaviour type metadata in a separate controlled
+case. Reports distinguish build flags from the schema actually used.
+
+Serialized collections preserve `OriginalName` independently of normalized
+dependency identifiers. When scene path metadata is unavailable, scene entries
+named `BuildPlayer-<SceneName>` recover that scene name with its original case.
+Explicit scene paths still take precedence. This does not reconstruct missing
+Assets directory paths or infer names from CAB hashes. See
+[the scene roundtrip contract](../../docs/UNITY_SCENE_ROUNDTRIP.tr.md).
+
+`collection-export-report.json` now includes `PrefabReconstructions`, one row per
+processed prefab hierarchy. `PrefabOrigin` distinguishes a
+`SourceSerializedObject` from a `GeneratedFromHierarchy` prefab. Generation is
+recorded at creation, not inferred from a processed collection; otherwise
+unproven origins are `Unknown`. Root/prefab identities are job-local. The independent
+`AuthoringRelationsValidation` field remains `NotRun`: neither an existing object
+nor a successfully generated prefab proves recovery of original variants, nested
+source links or property override lists. These rows describe the input hierarchy,
+including ones whose export later fails; `Succeeded` retains its collection-loop
+meaning. Both export modes and the embedded SystemTester report carry the rows.
+
+The optional `UnityPrefab` category uses a source-owned base/variant/nested prefab
+corpus generated with `--prefabs` and configured through
+`ASSETRIPPER_UNITY_PREFAB_FIXTURE`. It verifies effective overrides, nine objects,
+four components and 25 pointer fields, plus actual Editor reimport and four
+damaged exports. Source authoring links are compared independently: the pinned
+runtime bundle is flattened, so a healthy effective-data result is explicitly
+`FullRoundTripStatus=Partial`. See
+[the prefab graph contract](../../docs/UNITY_PREFAB_GRAPH.tr.md).
+
+Script reports also carry optional `Il2CppRecovery` provider/body provenance.
+The exact default Cpp2IL output is reported as known stubs, even when Level3 was
+requested. Custom providers remain `Unknown`; `Validation=NotRun` is independent
+of successful C# emission. Level3 by-reference stub repair now follows the actual
+selected provider rather than assuming all Level3 bodies were recovered.
+
+The optional `Il2CppNative` trial uses the separate source-owned
+`TestProjects/Il2CppMethods` project and `ASSETRIPPER_UNITY_IL2CPP_FIXTURE`.
+Twenty-eight `Il2CppCapability` provider/export/integrity tests run without Unity.
+The native trial compares 20 observations from matching Mono/IL2CPP players,
+retains original IL candidates, and separately measures checked max-stack repair
+in bounded managed replay processes. The pinned provider still produces wrong
+values in several methods; it is not enabled by default. This adds no general
+game-code execution option to SystemTester. See
+[the capability decision and limits](../../docs/IL2CPP_CAPABILITY.tr.md).
+
+`--il2cpp-worker FILE` opts IL2CPP inputs into the separate
+`AssetRipper.Tools.Il2CppWorker` process. Without it, import is unchanged and
+in-process. `--il2cpp-worker-dir` and `--il2cpp-worker-timeout` (1–86400 seconds,
+default 300) require the worker option. Each analysis gets a fresh process and a
+job directory with hashed input copies, `run.json` and bounded logs; job
+directories are kept as evidence and are not cleaned automatically. A `.dll`
+worker is started through `dotnet` from `PATH`. IL2CPP cases imported through the
+worker carry an `Il2CppWorker` record, including failed ones; Mono and unknown
+backends are unaffected by the option. A configured worker that fails,
+times out or returns an invalid response fails the case: it does not fall back
+to the `Unknown` scripting backend. The worker only carries the default
+metadata/stub output. `Il2CppRecovery.Isolation` records process and protocol
+checks, not method behavior. This is crash isolation, not a security sandbox. See
+[the worker contract](../../docs/IL2CPP_WORKER.tr.md).
+
+`--il2cpp-worker-max-heap MIB` (64–1048576) passes `DOTNET_GCHeapHardLimit` to a
+.NET worker. It caps the managed heap only; native memory is not limited.
+`--il2cpp-worker-discard-inputs` deletes the hashed input copies of completed jobs;
+failed jobs always keep them. Both require `--il2cpp-worker`. Before analysis the
+worker rejects a structurally mismatched binary/metadata pair (`RejectedPair`):
+tested with a one-method variant build whose metadata LibCpp2IL would otherwise map
+to shifted method pointers. Reports carry `PairValidation` and `RecoveryCapability`.
+
+## Selective export
+
+Repeat `--select-class-id INT`, `--select-name NAME`, `--select-path-id INT64`, or
+`--select-collection NAME` to select assets. Names and source collection names are
+exact, case-sensitive matches. Values within one filter are alternatives; different
+filters must all match. A PathID is local to a collection; combine it with
+`--select-collection` when disambiguation is needed.
+
+```sh
+dotnet AssetRipper.Tools.SystemTester.dll /path/to/input \
+  --select-class-id 114 --select-path-id 12345 --select-collection sharedassets0.assets \
+  --output /path/to/output --report /path/to/results.json
+```
+
+Selection expands to whole export collections and their forward object references,
+including prefab/scene members and the shared script export. The report's `Selection`
+lists requested and included objects, owning collections, and unresolved references.
+No matches, a non-exportable root, unknown script fields, or missing dependencies
+cannot produce a successful selection. `KnownObjectReferencesOnly` is deliberately
+limited to references understood by the current readers.
+
+Import, processing, and collection preparation still cover the entire input.
+StreamingAssets bulk copying is skipped, while the path-ID map contains only selected
+objects. Project scaffolding, original assembly archives and recovery evidence retain
+their existing global scope. Use a fresh output directory; old output is not cleaned.
+The CLI returns 0 on success, 1 for an incomplete export, and 2 for invalid arguments.
+See [the P14 scope and evidence](../../docs/SELECTIVE_EXPORT.tr.md).
 
 ## File Structure
 

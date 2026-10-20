@@ -21,9 +21,9 @@ public sealed class NullRefReturnProcessor(ScriptContentLevel scriptContentLevel
 		{
 			return; // Mono doesn't have method stubs, so this isn't necessary.
 		}
-		else if (scriptContentLevel > ScriptContentLevel.Level2)
+		else if (scriptContentLevel > ScriptContentLevel.Level2 && manager.Il2CppRecovery?.UsesKnownStubOutput != true)
 		{
-			return; // Il2Cpp doesn't have method stubs on Level 3 and above.
+			return; // Preserve custom or unknown recovery output; Level 3 can still select known stubs.
 		}
 
 		manager.ClearStreamCache();

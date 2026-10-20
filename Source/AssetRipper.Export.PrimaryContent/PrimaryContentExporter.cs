@@ -52,6 +52,7 @@ public sealed class PrimaryContentExporter
 {
 	public bool? LastExportSucceeded { get; private set; }
 	public CollectionExportReport? LastReport { get; private set; }
+	public IReadOnlySet<IUnityObjectBase>? LastSelectedAssets { get; private set; }
 
 	private readonly ObjectHandlerStack<IContentExtractor> exporters = new();
 	private readonly GameData gameData;
@@ -132,12 +133,28 @@ public sealed class PrimaryContentExporter
 	}
 
 	public void Export(GameBundle fileCollection, FullConfiguration settings, FileSystem fileSystem)
+		=> Export(fileCollection, settings, fileSystem, null);
+
+	public void Export(GameBundle fileCollection, FullConfiguration settings, FileSystem fileSystem, Predicate<IUnityObjectBase>? predicate)
 	{
 		LastExportSucceeded = false;
+		LastSelectedAssets = null;
+		Predicate<IUnityObjectBase>? configured = settings.ExportSettings.Selection?.CreatePredicate();
+		Predicate<IUnityObjectBase>? selection = predicate is null ? configured : configured is null ? predicate : a => configured(a) && predicate(a);
+		IUnityObjectBase[] inventory = fileCollection.FetchAssets().ToArray();
 		CollectionExportReport report = LastReport = CollectionExportReport.Create("PrimaryContent", fileCollection);
-		report.CaptureMonoBehaviourFailures(fileCollection, settings.ExportRootPath, fileSystem);
+		if (selection is null) report.CaptureMonoBehaviourFailures(inventory, settings.ExportRootPath, fileSystem);
 		gameData.RawRecovery?.WriteReference(settings.ExportRootPath, fileSystem);
-		List<PreparedCollection> collections = CreateCollections(fileCollection, report);
+		List<PreparedCollection> collections = CreateCollections(inventory, report, selection is not null);
+		if (selection is not null)
+		{
+			ExportSelectionPlan plan = ExportSelectionPlan.Create(inventory,
+				collections.Select(c => new ExportSelectionUnit(c.Collection, c.Seed, c.Assets, c.Name, c.Exportable)).ToArray(), selection);
+			LastSelectedAssets = plan.IncludedAssets;
+			report.ApplySelection(plan);
+			report.CaptureMonoBehaviourFailures(plan.IncludedAssets, settings.ExportRootPath, fileSystem);
+			collections = plan.CollectionIndices.Select(i => collections[i]).ToList();
+		}
 		report.Write(settings.ExportRootPath, fileSystem);
 
 		for (int i = 0; i < collections.Count; i++)
@@ -198,12 +215,12 @@ public sealed class PrimaryContentExporter
 		LastExportSucceeded = succeeded;
 	}
 
-	private List<PreparedCollection> CreateCollections(GameBundle fileCollection, CollectionExportReport report)
+	private List<PreparedCollection> CreateCollections(IEnumerable<IUnityObjectBase> inventory, CollectionExportReport report, bool selective)
 	{
 		List<PreparedCollection> collections = new();
 		HashSet<IUnityObjectBase> queued = new();
 
-		foreach (IUnityObjectBase asset in fileCollection.FetchAssets())
+		foreach (IUnityObjectBase asset in inventory)
 		{
 			if (queued.Contains(asset))
 			{
@@ -219,14 +236,16 @@ public sealed class PrimaryContentExporter
 				{
 					throw new InvalidOperationException("The export collection contains duplicate or already queued assets.");
 				}
-				PreparedCollection prepared = new(collection, asset, collection.Name, collection.Exportable);
+				PreparedCollection prepared = new(collection, asset, members, collection.Name, collection.Exportable);
 				collections.Add(prepared);
 				queued.UnionWith(members);
 			}
 			catch (Exception exception) when (ExceptionPolicy.IsRecoverable(exception))
 			{
 				report.AddFailure("Preparation", asset.ClassName, asset, exception);
-				Logger.Error(LogCategory.Export, $"Failed to prepare {asset.ClassName} ({asset.PathID}) in '{asset.Collection.Name}'.", exception);
+				string diagnostic = $"Failed to prepare {asset.ClassName} ({asset.PathID}) in '{asset.Collection.Name}'.";
+				if (selective) Logger.Warning(LogCategory.Export, diagnostic + " " + exception);
+				else Logger.Error(LogCategory.Export, diagnostic, exception);
 			}
 			queued.Add(asset);
 		}
@@ -234,7 +253,7 @@ public sealed class PrimaryContentExporter
 		return collections;
 	}
 
-	private sealed record PreparedCollection(ExportCollectionBase Collection, IUnityObjectBase Seed, string Name, bool Exportable);
+	private sealed record PreparedCollection(ExportCollectionBase Collection, IUnityObjectBase Seed, IUnityObjectBase[] Assets, string Name, bool Exportable);
 
 	private ExportCollectionBase CreateCollection(IUnityObjectBase asset)
 	{

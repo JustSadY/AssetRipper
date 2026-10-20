@@ -30,6 +30,9 @@ public sealed class PrefabHierarchyObject : GameObjectHierarchyObject, INamed
 	/// </remarks>
 	public IPrefabInstance Prefab { get; }
 
+	/// <summary>True only when the processor created this root's prefab object from its hierarchy.</summary>
+	public bool PrefabWasGenerated { get; private init; }
+
 	public override IEnumerable<IUnityObjectBase> Assets => base.Assets.Append(Prefab);
 
 	public Utf8String Name { get => Root.Name; set => Root.Name = value; }
@@ -68,8 +71,12 @@ public sealed class PrefabHierarchyObject : GameObjectHierarchyObject, INamed
 	}
 
 	public static PrefabHierarchyObject Create(ProcessedAssetCollection collection, IGameObject root, IPrefabInstance prefab)
+		=> Create(collection, root, prefab, prefabWasGenerated: false);
+
+	public static PrefabHierarchyObject Create(ProcessedAssetCollection collection, IGameObject root, IPrefabInstance prefab, bool prefabWasGenerated)
 	{
-		PrefabHierarchyObject prefabHierarchy = collection.CreateAsset((int)ClassIDType.PrefabInstance, (assetInfo) => new PrefabHierarchyObject(assetInfo, root, prefab));
+		PrefabHierarchyObject prefabHierarchy = collection.CreateAsset((int)ClassIDType.PrefabInstance,
+			(assetInfo) => new PrefabHierarchyObject(assetInfo, root, prefab) { PrefabWasGenerated = prefabWasGenerated });
 
 		foreach (IEditorExtension asset in root.FetchHierarchy())
 		{

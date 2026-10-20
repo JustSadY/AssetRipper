@@ -81,13 +81,13 @@ internal static class Program
 		StringBuilder sb = new();
 		foreach (SerializedType type in file.Types.ToArray().OrderBy(t => t.TypeID))
 		{
-			Console.WriteLine($"\tType ID: {type.TypeID,-10} Script Index: {type.ScriptTypeIndex,-5} Node Count: {type.OldType.Nodes.Count}");
+			Console.WriteLine($"\tType ID: {type.TypeID,-10} Script Index: {type.ScriptTypeIndex,-5} {DescribeTree(type)}");
 
 			AppendTypeTree(sb, type);
 		}
 		foreach (SerializedTypeReference type in file.RefTypes.ToArray().OrderBy(t => t.TypeID))
 		{
-			Console.WriteLine($"\tType ID: {type.TypeID,-10} Script Index: {type.ScriptTypeIndex,-5} Node Count: {type.OldType.Nodes.Count}");
+			Console.WriteLine($"\tType ID: {type.TypeID,-10} Script Index: {type.ScriptTypeIndex,-5} {DescribeTree(type)}");
 			Console.WriteLine($"\t\t{type.AsmName} {type.FullName}");
 
 			AppendTypeTree(sb, type);
@@ -100,8 +100,24 @@ internal static class Program
 		}
 	}
 
+	// A format 23 type tree can live outside the file; say so instead of reporting an empty tree.
+	private static string DescribeTree(SerializedTypeBase type)
+	{
+		if (!type.IsTypeTreeExtracted) return $"Node Count: {type.OldType.Nodes.Count}";
+		var hash = type.ExtractedTypeTreeHash;
+		// Show the four parsed words explicitly; the hash's byte-level convention is not established yet.
+		return $"Type tree stored outside this file (hash words {hash[0]:X8} {hash[1]:X8} {hash[2]:X8} {hash[3]:X8})";
+	}
+
 	private static void AppendTypeTree(StringBuilder sb, SerializedTypeBase type)
 	{
+		if (type.IsTypeTreeExtracted)
+		{
+			AppendClassIDLine(sb, type);
+			if (type is SerializedTypeReference reference) sb.AppendLine($"// {reference.AsmName} {reference.FullName}");
+			sb.AppendLine("// " + DescribeTree(type));
+			return;
+		}
 		string typeTreeText = type.OldType.Dump;
 		if (!string.IsNullOrEmpty(typeTreeText))
 		{

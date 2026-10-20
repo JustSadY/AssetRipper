@@ -13,6 +13,7 @@ public class BaseManager : IAssemblyManager
 {
 	public bool IsSet => ScriptingBackend != ScriptingBackend.Unknown;
 	public virtual ScriptingBackend ScriptingBackend => ScriptingBackend.Unknown;
+	public virtual Il2CppRecoveryReport? Il2CppRecovery => null;
 
 	private readonly List<AssemblyDefinition> assemblies = [];
 	private readonly Dictionary<string, List<AssemblyDefinition>> names = new(StringComparer.OrdinalIgnoreCase);

@@ -3,8 +3,16 @@ using AssetRipper.IO.Endian;
 namespace AssetRipper.IO.Files.SerializedFiles.Parser;
 
 /// <summary>
-/// The file header is found at the beginning of an asset file. The header is always using big endian byte order.
+/// A file has the SerializedFile header layout but a format generation this parser cannot read.
+/// It is a recoverable input failure: the file is reported as failed instead of being treated as a resource file.
 /// </summary>
+public sealed class UnsupportedSerializedFileVersionException(FormatVersion version)
+	: Exception($"SerializedFile format version {(int)version} is not supported; the newest supported version is {(int)SerializedFileHeader.MaxSupportedVersion}.")
+{
+	public FormatVersion Version { get; } = version;
+}
+
+/// <summary>The asset-file header always uses big endian byte order.</summary>
 public sealed record class SerializedFileHeader
 {
 	/// <summary>
@@ -29,6 +37,17 @@ public sealed record class SerializedFileHeader
 	public bool Endianess { get; set; }
 
 	public const int HeaderMinSize = 16;
+
+	/// <summary>The newest generation this parser can read.</summary>
+	public const FormatVersion MaxSupportedVersion = FormatVersion.ExtractedTypeTreeSupport;
+
+	/// <summary>
+	/// Generations above <see cref="MaxSupportedVersion"/> and up to this bound are recognized with the version 22 header
+	/// layout, so that a newer file fails explicitly instead of being skipped as an unrelated resource file.
+	/// </summary>
+	public const int MaxRecognizedVersion = 64;
+
+	public static bool IsNewerThanSupported(FormatVersion generation) => (int)generation > (int)MaxSupportedVersion && (int)generation <= MaxRecognizedVersion;
 
 	public const int MetadataMinSize = 13;
 
@@ -63,7 +82,7 @@ public sealed record class SerializedFileHeader
 		// Read generation first, the format changed hugely in gen 22 (unity 2020)
 		// Generation is always at [base + 0x8]
 		FormatVersion generation = (FormatVersion)reader.ReadInt32();
-		if (!Enum.IsDefined(generation))
+		if (!Enum.IsDefined(generation) && !IsNewerThanSupported(generation))
 		{
 			reader.BaseStream.Position = initialPosition;
 			return false;
@@ -71,6 +90,11 @@ public sealed record class SerializedFileHeader
 
 		if (generation >= FormatVersion.LargeFilesSupport)
 		{
+			if (reader.BaseStream.Length - initialPosition < 48)
+			{
+				reader.BaseStream.Position = initialPosition;
+				return false;
+			}
 			//22 Format:
 			//First known value is at 0x14, and is metadata size as a 32-bit integer.
 			//Then the file size as a 64-bit integer.
@@ -125,7 +149,7 @@ public sealed record class SerializedFileHeader
 
 		if (!Enum.IsDefined(Version))
 		{
-			throw new Exception($"Unsupported file generation {Version}'");
+			throw new UnsupportedSerializedFileVersionException(Version);
 		}
 	}
 

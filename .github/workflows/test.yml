@@ -30,6 +30,8 @@ jobs:
           name: test-evidence
           path: |
             TestResults/**
+            Source/0Bins/Other/AssetRipper.IO.Files.Tests/*/TestResults/serialized-file23/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/serialized-file23/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/managed-roundtrip/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-reference/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/type-recovery/**
@@ -39,4 +41,14 @@ jobs:
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-editor-roundtrip/*/Evidence/**
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-managed-reference/*/*.json
             Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-managed-reference/*/Evidence/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-scene/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-scene/*/Evidence/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-prefab/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-prefab/*/Evidence/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-assembly-graph/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-assembly-graph/*/PrimaryContent/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/unity-assembly-graph/*/Evidence/**
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/il2cpp-capability/*/*.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/il2cpp-capability/*/*/behavior.json
+            Source/0Bins/Other/AssetRipper.Tests/*/TestResults/il2cpp-capability/*/Evidence/**
           retention-days: 7

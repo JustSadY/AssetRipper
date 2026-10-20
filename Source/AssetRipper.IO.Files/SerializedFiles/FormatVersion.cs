@@ -77,9 +77,17 @@ public enum FormatVersion
 	/// </summary>
 	StoresTypeDependencies = 21,
 	/// <summary>
-	/// 2020.1 to x
+	/// 2020.1 to 6000.5.0a4
 	/// </summary>
 	LargeFilesSupport = 22,
+	/// <summary>
+	/// 6000.5.0a5 and later. A type tree is prefixed by an xxHash128 and a size; size zero means the type tree is stored
+	/// outside this file. Inline type trees start with a "tthm" header that repeats the format version.
+	/// </summary>
+	/// <remarks>
+	/// Implemented from the documented layout without a Unity 6000.5 build in this checkout; see docs/SERIALIZED_FILE_23.tr.md.
+	/// </remarks>
+	ExtractedTypeTreeSupport = 23,
 }
 internal static class FormatVersionExtensions
 {

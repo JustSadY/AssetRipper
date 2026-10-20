@@ -4,6 +4,9 @@ namespace AssetRipper.Export.Configuration;
 
 public sealed record class ExportSettings
 {
+	/// <summary>Optional asset selection, expanded to atomic export collections and forward object references.</summary>
+	public ExportSelectionSettings? Selection { get; set; }
+
 	/// <summary>
 	/// The file format that audio clips get exported in. Recommended: Ogg
 	/// </summary>

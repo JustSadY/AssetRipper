@@ -52,6 +52,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 		ScriptExportReport report = new()
 		{
 			ScriptingBackend = AssetExporter.AssemblyManager.ScriptingBackend,
+			Il2CppRecovery = AssetExporter.AssemblyManager.Il2CppRecovery,
 			ScriptContentLevel = AssetExporter.Decompiler.ScriptContentLevel,
 			LanguageSelection = AssetExporter.Decompiler.LanguageSelection,
 		};
@@ -62,6 +63,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 		string assetsDirectoryPath = fileSystem.Path.Join(projectDirectory, AssetsKeyword);
 
 		Dictionary<string, AssemblyDefinitionDetails> assemblyDefinitionDetailsDictionary = new();
+		Dictionary<string, AssemblyExportType> emittedAssemblies = new(StringComparer.Ordinal);
 
 		string pluginsFolder = fileSystem.Path.Join(assetsDirectoryPath, "Plugins");
 
@@ -81,6 +83,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 				report.Assemblies.Add(AssetExporter.Decompiler.DecompileWholeProject(assembly, outputDirectory, fileSystem));
 
 				assemblyDefinitionDetailsDictionary.TryAdd(assemblyName, new AssemblyDefinitionDetails(assembly, outputDirectory));
+				emittedAssemblies.Add(assemblyName, AssemblyExportType.Decompile);
 			}
 			else if (exportType is AssemblyExportType.Save)
 			{
@@ -89,6 +92,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 				string outputPath = fileSystem.Path.Join(pluginsFolder, SpecialFileNames.AddAssemblyFileExtension(assemblyName));
 				AssetExporter.AssemblyManager.SaveAssembly(assembly, outputPath, fileSystem);
 				OnAssemblyExported(container, outputPath, fileSystem);
+				emittedAssemblies.Add(assemblyName, AssemblyExportType.Save);
 			}
 		}
 
@@ -109,6 +113,7 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 					string assemblyDirectoryPath = fileSystem.Path.Join(assetsDirectoryPath, GetScriptsFolderName(assemblyName), assemblyName);
 					AssemblyDefinitionDetails details = new AssemblyDefinitionDetails(assemblyName, assemblyDirectoryPath);
 					assemblyDefinitionDetailsDictionary.Add(assemblyName, details);
+					emittedAssemblies.TryAdd(assemblyName, AssemblyExportType.Decompile);
 				}
 			}
 
@@ -133,7 +138,8 @@ public sealed class ScriptExportCollection : ScriptExportCollectionBase
 				//    see: https://docs.unity3d.com/2017.3/Documentation/Manual/ScriptCompilationAssemblyDefinitionFiles.html
 				if (!ReferenceAssemblies.IsPredefinedAssembly(details.AssemblyName))
 				{
-					AssemblyDefinitionExporter.Export(details, fileSystem, AssetExporter.ReferenceAssemblyDictionary);
+					report.UnityAssemblyReferenceFailures.AddRange(AssemblyDefinitionExporter.Export(details, fileSystem,
+						AssetExporter.ReferenceAssemblyDictionary, emittedAssemblies));
 				}
 			}
 		}

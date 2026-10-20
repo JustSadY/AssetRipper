@@ -1,4 +1,5 @@
 ﻿using AssetRipper.Assets.Bundles;
+using AssetRipper.Assets.Collections;
 using AssetRipper.Import.AssetCreation;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
@@ -49,6 +50,11 @@ public sealed class GameStructure : IDisposable
 		foreach (FailedFile file in FileCollection.FetchFailedFiles())
 		{
 			Logger.Error(LogCategory.Import, $"Failed to load '{file.Name}' during {file.Stage}.{Environment.NewLine}{file.StackTrace}");
+		}
+		foreach (SerializedAssetCollection collection in FileCollection.FetchAssetCollections().OfType<SerializedAssetCollection>().Where(c => c.ExtractedTypeTreeCount > 0))
+		{
+			Logger.Warning(LogCategory.Import, $"{collection.ExtractedTypeTreeCount} of {collection.SerializedTypeCount} types in '{collection.Name}' store their type trees "
+				+ $"outside the file (SerializedFile {(int)collection.SerializedFormat}); their objects are read without the file's type trees.");
 		}
 		RawRecovery?.WriteSummary("Imported");
 
@@ -103,12 +109,7 @@ public sealed class GameStructure : IDisposable
 		ScriptingBackend scriptBackend = GetScriptingBackend(configuration.DisableScriptImport);
 		Logger.Info(LogCategory.Import, $"Files use the '{scriptBackend}' scripting backend.");
 
-		AssemblyManager = scriptBackend switch
-		{
-			ScriptingBackend.Mono => new MonoManager(OnRequestAssembly),
-			ScriptingBackend.IL2Cpp => new IL2CppManager(OnRequestAssembly, configuration.ImportSettings.ScriptContentLevel),
-			_ => new BaseManager(OnRequestAssembly),
-		};
+		AssemblyManager = AssemblyManagerFactory.Create(scriptBackend, OnRequestAssembly, configuration.ImportSettings);
 
 		Logger.SendStatusChange("loading_step_load_assemblies");
 
@@ -117,7 +118,7 @@ public sealed class GameStructure : IDisposable
 			//Loads any Mono or IL2Cpp assemblies
 			AssemblyManager.Initialize(PlatformStructure ?? MixedStructure ?? throw new Exception("No platform structure"));
 		}
-		catch (Exception ex)
+		catch (Exception ex) when (AssemblyManager is not IsolatedIL2CppManager)
 		{
 			Logger.Error(LogCategory.Import, "Could not initialize assembly manager. Switching to the 'Unknown' scripting backend.");
 			Logger.Error(ex);

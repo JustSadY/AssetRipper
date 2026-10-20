@@ -1,0 +1,5 @@
+{
+  "name": "AssetRipper.GraphComponents",
+  "references": ["AssetRipper.GraphModel"],
+  "autoReferenced": true
+}

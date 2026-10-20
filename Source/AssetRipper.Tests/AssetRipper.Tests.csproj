@@ -8,6 +8,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Include="../AssetRipper.IO.Files.Tests/SerializedFile23Fixture.cs" Link="Decompilation/SerializedFile23Fixture.cs" />
+		<Compile Remove="Fixtures/Il2CppReplay.cs" />
+		<EmbeddedResource Include="Fixtures/Il2CppReplay.cs" />
+		<Compile Remove="Fixtures/Il2CppWorkerDouble.cs" />
+		<EmbeddedResource Include="Fixtures/Il2CppWorkerDouble.cs" />
 		<PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.12" />
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
@@ -28,12 +33,15 @@
 		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperRoundTripValidator.cs" LogicalName="UnityRoundTripValidator.cs" />
 		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperGraphValidator.cs" LogicalName="UnityGraphValidator.cs" />
 		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperSceneValidator.cs" LogicalName="UnitySceneValidator.cs" />
+		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperPrefabValidator.cs" LogicalName="UnityPrefabValidator.cs" />
+		<EmbeddedResource Include="../../TestProjects/Validation/AssetRipperAssemblyGraphValidator.cs" LogicalName="UnityAssemblyGraphValidator.cs" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="..\AssetRipper.Export.PrimaryContent\AssetRipper.Export.PrimaryContent.csproj" />
 		<ProjectReference Include="..\AssetRipper.Export.UnityProjects\AssetRipper.Export.UnityProjects.csproj" />
 		<ProjectReference Include="..\UnityEngine\UnityEngine.csproj" />
+		<ProjectReference Include="..\AssetRipper.Tools.Il2CppWorker\AssetRipper.Tools.Il2CppWorker.csproj" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 </Project>

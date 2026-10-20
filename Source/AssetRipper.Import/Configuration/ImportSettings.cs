@@ -1,5 +1,6 @@
 ﻿using AssetRipper.Import.Logging;
 using System.Text.Json.Serialization;
+using AssetRipper.Import.Structure.Assembly.Workers;
 
 namespace AssetRipper.Import.Configuration;
 
@@ -9,6 +10,8 @@ public sealed record class ImportSettings
 	/// The level of scripts to export
 	/// </summary>
 	public ScriptContentLevel ScriptContentLevel { get; set; } = ScriptContentLevel.Level2;
+	/// <summary>Optional local metadata/stub worker. Null preserves the existing in-process import.</summary>
+	public Il2CppWorkerOptions? Il2CppWorker { get; set; }
 
 	/// <summary>
 	/// Including the streaming assets directory can cause some games to fail while exporting.
@@ -48,6 +51,7 @@ public sealed record class ImportSettings
 	public void Log()
 	{
 		Logger.Info(LogCategory.General, $"{nameof(ScriptContentLevel)}: {ScriptContentLevel}");
+		Logger.Info(LogCategory.General, $"{nameof(Il2CppWorker)}: {Il2CppWorker?.ExecutablePath ?? "Disabled"}");
 		Logger.Info(LogCategory.General, $"{nameof(StreamingAssetsMode)}: {StreamingAssetsMode}");
 		Logger.Info(LogCategory.General, $"{nameof(DefaultVersion)}: {DefaultVersion}");
 		Logger.Info(LogCategory.General, $"{nameof(TargetVersion)}: {TargetVersion}");

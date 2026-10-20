@@ -24,6 +24,7 @@ public interface IAssemblyManager : IDisposable, ITypeResolver
 	Stream GetStreamForAssembly(AssemblyDefinition assembly);
 	void ClearStreamCache();
 	AssemblySourceInfo? GetSourceInfo(AssemblyDefinition assembly) => null;
+	Il2CppRecoveryReport? Il2CppRecovery => null;
 	IReadOnlyList<AssemblyResolutionDiagnostic> ResolutionDiagnostics => [];
 	bool HasAssemblyNameCollisions => GetAssemblies().GroupBy(a => a.Name?.ToString() ?? "", StringComparer.OrdinalIgnoreCase).Any(g => g.Count() > 1);
 

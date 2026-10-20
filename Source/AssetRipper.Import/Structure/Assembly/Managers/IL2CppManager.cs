@@ -1,6 +1,7 @@
 using AsmResolver.DotNet;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
+using AssetRipper.Import.Structure.Assembly.Workers;
 using AssetRipper.Import.Structure.Platforms;
 using Cpp2IL.Core.Api;
 using Cpp2IL.Core.InstructionSets;
@@ -52,7 +53,7 @@ public sealed class IL2CppManager : BaseManager
 	public string? MetaDataPath { get; private set; }
 	public UnityVersion UnityVersion { get; private set; }
 	/// <summary>
-	/// For when analysis is reimplimented in Cpp2IL.
+	/// The requested level; the selected output provider determines whether bodies are stubbed.
 	/// </summary>
 	private readonly ScriptContentLevel contentLevel;
 
@@ -61,10 +62,58 @@ public sealed class IL2CppManager : BaseManager
 		contentLevel = level;
 	}
 
+	/// <summary>
+	/// Rejects a structurally foreign binary/metadata pair before processing layers and output run.
+	/// Off by default so the in-process import keeps its existing behavior; the isolated worker always enables it.
+	/// </summary>
+	public bool ValidateNativePair { get; init; }
+
 	public override ScriptingBackend ScriptingBackend => ScriptingBackend.IL2Cpp;
+	private Il2CppRecoveryReport? recoveryReport;
+	public override Il2CppRecoveryReport? Il2CppRecovery => recoveryReport;
+
+	/// <summary>
+	/// Describes the current selection without initializing or analyzing a native binary.
+	/// The actual import captures its own selection when <see cref="Initialize"/> starts.
+	/// </summary>
+	public Il2CppRecoveryReport PreviewRecoverySelection() => CaptureSelection().Report;
+
+	private PipelineSelection CaptureSelection()
+	{
+		// Capture both hooks before invoking provider properties or processing layers. Their callbacks
+		// can change the static hooks, but those changes apply to the next initialization only.
+		List<Cpp2IlProcessingLayer>? recoveryLayers = RecoveryProcessingLayers;
+		AsmResolverDllOutputFormat? recoveryOutput = RecoveryOutputFormat;
+		List<Cpp2IlProcessingLayer> layers = (contentLevel == ScriptContentLevel.Level3
+			? recoveryLayers ?? DefaultProcessingLayers
+			: DefaultProcessingLayers).ToList();
+		AsmResolverDllOutputFormat output = contentLevel == ScriptContentLevel.Level3
+			? recoveryOutput ?? DefaultOutputFormat
+			: DefaultOutputFormat;
+		bool knownStub = output.GetType() == typeof(AsmResolverDllOutputFormatDefault);
+		string capability = contentLevel != ScriptContentLevel.Level3 ? "NotRequested"
+			: knownStub ? "RecoveryUnavailable"
+			: output is Il2CppCandidateOutput ? "ExperimentalCandidates"
+			: "UnverifiedCustomProvider";
+		Il2CppRecoveryReport report = new(1, contentLevel.ToString(), DescribeProvider(output.GetType(), output.OutputFormatId),
+			Array.AsReadOnly(layers.Select(layer => DescribeProvider(layer.GetType(), layer.Id)).ToArray()),
+			knownStub, new(0, 0, 0), "NotRun")
+		{ RecoveryCapability = capability };
+		return new(output, layers, report);
+	}
+
+	private static Il2CppProviderInfo DescribeProvider(Type type, string id)
+	{
+		System.Reflection.AssemblyName assembly = type.Assembly.GetName();
+		return new(type.FullName ?? type.Name, assembly.Name ?? "", assembly.Version?.ToString() ?? "", id);
+	}
+
+	private sealed record PipelineSelection(AsmResolverDllOutputFormat Output, List<Cpp2IlProcessingLayer> Layers, Il2CppRecoveryReport Report);
 
 	public override void Initialize(PlatformGameStructure gameStructure)
 	{
+		PipelineSelection selection = CaptureSelection();
+		recoveryReport = selection.Report;
 		string? gameDataPath = gameStructure.GameDataPath;
 		if (string.IsNullOrWhiteSpace(gameDataPath))
 		{
@@ -93,27 +142,31 @@ public sealed class IL2CppManager : BaseManager
 
 		Cpp2IlApi.InitializeLibCpp2Il(GameAssemblyPath!, MetaDataPath!, UnityVersion, false);
 
+		Il2CppPairValidation? pairValidation = ValidateNativePair ? Il2CppNativePairValidator.Validate(Cpp2IlApi.CurrentAppContext!) : null;
+		recoveryReport = selection.Report with { PairValidation = pairValidation };
+
 		Logger.SendStatusChange("loading_step_generate_dummy_dll");
 
-		List<Cpp2IlProcessingLayer> processingLayers = contentLevel == ScriptContentLevel.Level3
-			? RecoveryProcessingLayers ?? DefaultProcessingLayers
-			: DefaultProcessingLayers;
+		List<Cpp2IlProcessingLayer> processingLayers = selection.Layers;
 
-		foreach (Cpp2IlProcessingLayer cpp2IlProcessingLayer in processingLayers)
+		foreach (Cpp2IlProcessingLayer cpp2IlProcessingLayer in processingLayers.ToArray())
 		{
 			cpp2IlProcessingLayer.PreProcess(Cpp2IlApi.CurrentAppContext, processingLayers);
 		}
+		Il2CppRecoveryReport activeReport = selection.Report with
+		{
+			ProcessingLayers = Array.AsReadOnly(processingLayers.Select(layer => DescribeProvider(layer.GetType(), layer.Id)).ToArray()),
+			PairValidation = pairValidation,
+		};
+		recoveryReport = activeReport;
 
 		foreach (Cpp2IlProcessingLayer cpp2IlProcessingLayer in processingLayers)
 		{
 			cpp2IlProcessingLayer.Process(Cpp2IlApi.CurrentAppContext);
 		}
 
-		AsmResolverDllOutputFormat outputFormat = contentLevel == ScriptContentLevel.Level3
-			? RecoveryOutputFormat ?? DefaultOutputFormat
-			: DefaultOutputFormat;
-
-		List<AssemblyDefinition> assemblies = outputFormat.BuildAssemblies(Cpp2IlApi.CurrentAppContext);
+		List<AssemblyDefinition> assemblies = selection.Output.BuildAssemblies(Cpp2IlApi.CurrentAppContext);
+		recoveryReport = activeReport.WithMethodBodies(assemblies);
 
 		foreach (AssemblyDefinition assembly in assemblies)
 		{

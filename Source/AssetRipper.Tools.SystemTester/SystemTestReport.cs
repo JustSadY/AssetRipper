@@ -2,6 +2,7 @@ using AssetRipper.Export.UnityProjects;
 using AssetRipper.Export.Collections;
 using AssetRipper.Export.Scripts;
 using AssetRipper.Import.Recovery;
+using AssetRipper.Import.Structure.Assembly.Workers;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
@@ -36,7 +37,8 @@ internal sealed record SystemTestResult(
 	string? Error,
 	RawRecoverySummary? RawRecovery,
 	CollectionExportReport? CollectionExport,
-	AssemblyResolutionReport? AssemblyResolution);
+	AssemblyResolutionReport? AssemblyResolution,
+	Il2CppWorkerRun? Il2CppWorker = null);
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(SystemTestReport))]

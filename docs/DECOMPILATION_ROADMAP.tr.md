@@ -470,3 +470,159 @@ Sözleşme, üretim komutu ve sınırlar: [managed-reference grafiği ve klon d�
 - Planın tamamı bitmedi. Format 1, geniş sürüm/şema matrisi, eksik türün alan bazında recovery'si, büyük grafik ölçümleri, sahne bundle'ı, Play Mode ve IL2CPP kabul kapıları açık. Sonraki P13 dilimi sahne bundle'ının normal export sonrası Editor'da açılmasıdır.
 
 Sözleşme, komutlar ve sınırlar: [managed-reference tablosunda yanlış başarıyı önleme](MANAGED_REFERENCE_VALIDATION.tr.md).
+
+## 24. On üçüncü uygulama paketi — P13 gerçek sahne bundle'ı
+
+- Kaynak sahibi olduğumuz **Unity 6000.4.0f1 / Linux64** corpus'u; iki root, beş GameObject, inactive child, transform/sibling bilgisi, iki MonoBehaviour ve **13 PPtr alanını** kapsıyor. Sahne kaydedilip yeniden açılarak alan ve nesne eşitlikleri bağımsız sabitlerle doğrulandı; DLL, kaynak ve bundle girdileri 21 dosyalık SHA-256 manifestinde korundu.
+- Gerçek export, metadata yokken scene adını `buildplayer-scenefixture` yapıyordu. Serialized collection artık özgün `OriginalName` bilgisini normalize dependency kimliğinden ayrı saklıyor. Scene path bulunmadığında yalnız `SerializedBundle` içindeki geçerli `BuildPlayer-<SceneName>` entry'sinden özgün case korunuyor. Explicit path önceliği, generated collection ve dependency çözümlemesi sekiz regresyonla doğrulandı; kayıp Assets dizini veya CAB hash'inden ad tahmin edilmiyor.
+- Bu sahne corpus'unda `DisableWriteTypeTree` build'i de iki MonoBehaviour için 36 TypeTree düğümü taşıyor. İlk testlerin aksi yöndeki varsayımı reddedildi. Build flag'i ile şema yolu ayrı raporlanıyor; assembly fallback, aynı nesne baytları korunarak yalnız test factory'sinin type metadata'sını vermediği ayrı kontrollü senaryoda doğrulandı. Gerçek stripped sahne desteği diye sunulmuyor.
+- Altı reader vakası hiyerarşi, inherited/private/scalar alanlar, yerel/harici/null/dizi referansları ve eksik external bundle'da değişmeyen native ID'leri karşılaştırıyor. Yedi Editor vakası normal export'un ürettiği `.unity` sahnesini gerçekten açıyor: üç sağlam senaryo ve script GUID/scalar/external GUID/hiyerarşi için dört negatif kontrol. Orijinal DLL Assets'e eklenmedi; decompile edilmiş C# Editor'da derlendi.
+- Import öncesi snapshot, özgün mutation dosyası, şema/nesne hash'leri ve Editor JSON sonuçları korunuyor; CI'ın seçilmiş artifact yollarına eklendi. Scene corpus / executable yoksa sekiz naming testi çalışıyor, 13 test açıkça NotExecuted. Yapılandırılmış hatalı girdi skip sayılmıyor.
+- Doğrulama: Debug **779/779**, ilgili Release **250/250** (core 238 + output-directory 5 + IO 3 + GUI 4); sahne kategorisi iki konfigürasyonda **21/21**. Release build **0 hata / 12 mevcut uyarı**. 26 raporda **915** corpus/nesne/snapshot/mutation hash'i ve ayrıca 20 Unity referansı bağımsız kontrol edildi. Tam son koşularda native Editor retry gerekmedi; uzak CI çalıştırılmadı.
+- Genel plan bitmedi. Bu kabul kapısı tek sürüm/platform/sahne dilimidir; gerçek stripped scene/player, çoklu/additive sahne, prefab instance/variant/override bağlantıları, Play Mode ve IL2CPP açıktır. Sonraki P13 işi prefab instance/variant bağları ve override'ları gerçek Editor oracle'ıyla ölçmektir.
+
+Sözleşme, komutlar ve sınırlar: [sahne bundle'ının dışa aktarımı ve Editor doğrulaması](UNITY_SCENE_ROUNDTRIP.tr.md).
+
+## 25. On dördüncü uygulama paketi — P13 prefab variant/nested ölçümü ve köken raporu
+
+- Unity **6000.4.0f1 / Linux64** üzerinde gerçek BaseRig, ondan türetilmiş VariantRig ve içinde variant instance'ı bulunan NestedRig corpus'u üretildi. Source/override bağlantıları Editor API'siyle, etkin alanlar bağımsız sabit ve nesne eşitlikleriyle doğrulandı. 9 GameObject, 4 bileşen ve 25 PPtr alanı; inherited/private alanlar, inactive child, transform, karşılıklı script ve prefab asset referansları kapsandı. 27 girdi dosyası hash manifestinde korundu.
+- Dört gerçek okuma/processing vakasında iki şema ve external bundle var/yok matrisi geçti. Bu corpus'un TypeTree'siz modu gerçekten assembly şemasını kullanıyor. İki primary-content export'u ve altı gerçek Unity-project → Editor vakası eklendi; script GUID, variant scalar, cross-prefab GUID ve nested hierarchy bozulmaları doğru kategorilerde reddediliyor.
+- Somut sınır ölçüldü: kaynak Editor'da variant/nested bağlantıları mevcut, runtime payload'da PrefabInstance nesnesi yok. Export üç Regular prefab üretiyor. Etkin override ve referanslar korunurken authoring grafiği geri oluşmuyor; sağlam checker sonucu açıkça `EffectiveDataPassed=true`, `AuthoringRelationsMatched=false`, `FullRoundTripStatus=Partial`. Bu sonuç tam variant rekonstrüksiyonu diye sunulmuyor.
+- Üretimde iki exporter'ın collection raporuna `PrefabReconstructions` eklendi. Yeni prefab oluşturulması processor'da işaretleniyor; kaynak serialized nesnesi / hiyerarşiden üretilmiş nesne / kanıtlanamayan köken ayrılıyor. Processed collection üyeliği tek başına üretim sayılmıyor. Job-local root/prefab kimlikleri ve bağımsız `AuthoringRelationsValidation=NotRun` kaydı var; collection döngüsünün başarı anlamı korunuyor. Mevcut public constructor/Create imzaları korunarak dört kurulumsuz regresyon eklendi.
+- Son Debug **795/795**; yeni kategori Debug/Release **16/16**. Release build **0 hata / 1 mevcut Animator TODO uyarısı**. İlk ilgili Release koşusunda **265 geçti / 1 mevcut scalar Editor vakası native exit 134** verdi. Aynı projenin 12 mevcut kaynak/prefab/meta hash'i değiştirilmeden ayrı açılışı başarılıydı; aynı NUnit vakası ayrıca **1/1** geçti. İlk hata korundu, otomatik retry eklenmedi. 24 rapor grubu üzerinde **999 hash** ve **100 YAML referans bağı** ayrıca eşleşti.
+- Corpus/executable yokken dört regresyon geçti, 12 vaka NotExecuted; yalnız executable yokken 10 vaka geçti, altı vaka NotExecuted. Yeni JSON/Evidence artifact yolları eklendi; orijinal source prefab'lar import girdisi olarak kullanılmadı, DLL Assets'e kopyalanmadı. Uzak CI çalıştırılmadı.
+- Genel plan sürüyor. Kaynak metadata taşıyan formatlarda gerçek variant/nested/override rekonstrüksiyonu ve prefab instance içeren sahne açık. Sonraki bağımsız öncelik gerçek stripped scene/player corpus'u ve P10 IL2CPP recovery provider yetenek ölçümüdür.
+
+Sözleşme, kanıt ve sınırlar: [prefab variant/nested grafiği](UNITY_PREFAB_GRAPH.tr.md).
+
+## 26. On beşinci uygulama paketi — P10 pinli IL2CPP sağlayıcı yetenek deneyi
+
+- Kaynak sahibi olduğumuz ayrı Unity **6000.4.0f1 / Linux64 / x86_64 / metadata 39** projesinin aynı koddan Mono ve IL2CPP oyuncuları üretildi. Aritmetik, branch, compiler'ın optimize ettiği loop, açık exception, alan güncellemesi ve generic için 20 bağımsız sonuç her iki oyuncuda eşleşti. 409 girdi hash'i korundu; binary/DLL/corpus repoya eklenmedi.
+- NuGet **AssetRipper.Cpp2IL.Core 1.0.9** paketi, assembly/MVID/hash ve nuspec commit'iyle incelendi. Varsayılan output, Level3 hook'u yapılandırılmadığında da minimal stub üretiyor. Gerçek import **16.000 stub / 827 gövdesiz bildirim / 0 unknown** saydı. Deneysel output mevcut, fakat boş ISIL'i başarı sayıyor; toplam başarı sayacı davranış kanıtı kabul edilmedi. SDK/paket yükseltilmedi.
+- Üretim script raporuna opsiyonel `Il2CppRecovery` eklendi: seçilen provider/layer tipleri, sürüm/ID, requested level, known-stub sözleşmesi ve üç gövde sayacı taşınıyor. İki export ve placeholder yolunda C# yazma başarısı ile `Validation=NotRun` ayrı. Custom/deneysel provider'ın dolu gövdesi doğrulanmadan Unknown kalıyor. Hook seçimi iş başında snapshot alınıyor; Level3 by-reference düzeltmesi artık gerçek stub seçiminde çalışıyor, bilinmeyen/custom gövdeleri koruyor.
+- Altı gerçek metotta kaynak metadata token, native pointer/RVA/raw offset ve paylaşılan adres sayısı korundu. Kaynak Mono DLL'nin ayrı .NET replay'i **20/20**; default stub **3/20 tesadüfi eşleşme**, ham deneysel IL **0/20** verdi. REA altı ham metotta `MaxStack=0` gördü. Ayrı kopyada stack hesabı düzeltildiğinde **10/20** eşleşti: `Counter.Step` üç girişte ve `Echo<int>` tek girişte geçti; aritmetik/branch/exception kayıpları sürüyor. Bu sonuç genel recovery veya virtual/interface dispatch başarısı diye sunulmadı.
+- 28 kurulumsuz provider/export/integrity kontrolü ve bir gerçek capability deneyi eklendi. Replay süreçleri hash kontrolü ve 30 saniye sınırı taşıyor; ham ve stack-rebuilt DLL/IL/sonuçlar ayrı saklanıyor. Corpus yokken **28 geçti / 1 NotExecuted**. Üretim/SystemTester genel oyun kodu çalıştırma özelliği kazanmadı; native Cpp2IL analizi henüz test host'unda, tam recovery worker izolasyonu P11'de açık.
+- Doğrulama: corpus'lar etkin tam Debug **824/824**; yeni kategori **29/29 Debug ve Release**. Release seti **823/823**; yalnız önceden bilinen Debug.Assert bağımlı `ExportIdHandlerTests.GetMainExportID_ValueGreaterThan100000_DebugAssertFails` dışarıda bırakıldı. Son solution Release build **0 uyarı / 0 hata**; ilk sağlayıcı rebuild'inde mevcut Animator TODO uyarısı vardı. Native Editor retry gerekmedi. Bağımsız denetimde **409 corpus + 14 kanıt hash'i**, **12 ELF adres/ofset eşlemesi**, **6 Mono/native token bağı** ve stack değişimi sırasında aynı kalan **6 ham CIL hash'i** doğrulandı. Uzak CI çalıştırılmadı.
+- İlk fixture denemelerindeki eksik JsonSerialize modülü, host clang/libncurses gereksinimi ve kontrolsüz native sıfıra bölme çökmesi kaydedildi; hatalar başarılı sayılmadı. Yeni output dizininde açık managed throw kullanan corpus gerçekten çalıştırıldı. Sistem/Unity kurulumu değiştirilmedi.
+- Genel plan bitmedi. Pinli sağlayıcıda sınırlı gerçek gövde potansiyeli ölçüldü; ürünün varsayılanı değiştirilmedi. Sonraki dilim P11'de izole worker ve typed-CIL/eksik x86 operand doğrulamasıdır. Yanlış binary/metadata çifti, exception region, gerçek generic-sharing matrisi, upstream karşılaştırması ve diğer sürüm/platformlar açık.
+
+Sözleşme, tekrar üretim, REA kanıtı ve karar: [IL2CPP capability deneyi](IL2CPP_CAPABILITY.tr.md).
+
+## 27. On altıncı uygulama paketi — P11 izole IL2CPP worker'ı ilk dilim
+
+- Yeni `AssetRipper.Tools.Il2CppWorker` aracı ve opsiyonel `ImportSettings.Il2CppWorker` ayarı eklendi. Ayar boşken mevcut in-process `IL2CppManager` değişmeden kullanılıyor. Ayar verildiğinde `IsolatedIL2CppManager` her analiz için yeni bir süreç başlatıyor; Cpp2IL yalnız çocukta çalışıyor ve ana sürecin `Cpp2IlApi.CurrentAppContext` değeri değişmiyor. Bu bir çökme/durum izolasyonu; OS güvenlik sandbox'ı değil.
+- Girdiler job dizinine kopyalanıyor ve SHA-256/uzunluk kimliğiyle taşınıyor. Şema 1, source-generated JSON, tanınmayan alan reddi, 64 KiB istek / 16 MiB yanıt, 64 KiB stdout/stderr sınırı uygulanıyor. Süre aşımı ve iptal süreç ağacını durduruyor. Sıfırdan farklı exit, yanıt dosyası olsa da başarı sayılmıyor. Çıktılar yalnız `Assemblies/NNNNN.dll` adlarıyla kabul ediliyor; link, yol kaçışı, tekrarlanan ad ve hash uyuşmazlığı reddediliyor. Her iş `run.json` ve log'larla kanıt bırakıyor.
+- Ana süreç bütün assembly'leri yeniden hash'leyip hazırlamadan, gövde sayılarını kendi hesabıyla eşitlemeden ve `RuntimeContext` kurmadan hiçbirini göstermiyor. `Il2CppRecovery.Isolation` (job/PID/`Process`/`Passed`) yalnız ana süreç tarafından yazılıyor; `Validation=NotRun` korunuyor. Worker yapılandırılmışken başlatma hatası artık `Unknown` backend'e sessiz geçiş değil, kanıt dizinli `Il2CppWorkerException`. Ana süreçte boş gelen Unity sürümü, kopyalanmış `globalgamemanagers`/`data.unity3d`/`UnityPlayer` kanıtından çocukta belirleniyor. Custom Level3 hook'ları taşınmıyor ve açıkça reddediliyor. SystemTester'a üç `--il2cpp-worker*` seçeneği ve vaka başına worker kaydı eklendi.
+- Ürün yolu yalnız `dll_default` metadata/stub çıktısını kabul ediyor. Gerçek corpus'ta iki ardışık iş farklı PID'lerle **49 assembly / 16.000 stub / 827 gövdesiz / 0 unknown** verdi. Bozuk native girdi çocukta `ExitedWithError` ile sınırlı kaldı ve sonraki iş temiz tamamlandı. Ayrı deneysel aday API'si, yer tutucu içeren gövdeleri reddeden yapısal kapı içeriyor: 2 `CandidateUnverified` (`Step`, `Echo`), 4 `RejectedProviderPlaceholder`, 1 `UnsupportedConstructor`; replay **6/20 / Failed**. Stack kapısı tür doğruluğunu kanıtlamıyor ve bu durum testte sabitlendi.
+- Doğrulama: son hedefli Debug koşusu **73/73** (`Il2CppWorker` 40 kurulumsuz, corpus etkin `Il2CppWorkerNative` 5, `Il2CppCapability` 28). Bu koşudan sonra kaynak dosyası değişmedi. Worker ve SystemTester Debug build'i **0 uyarı / 0 hata**. Tam Debug paketi, Release, P10 `Il2CppNative` deneyinin son koşusu, SystemTester worker yolunun gerçek oyunla uçtan uca koşusu (yalnız derlendi), Windows/macOS ve uzak CI bu dilimde koşulmadı.
+- Genel plan bitmedi. P10 capability deneyi hâlâ test host'unda analiz yapıyor. Job dizini temizleme politikası, kaynak kotaları, yanlış binary/metadata çifti negatif kontrolü, typed-CIL ve eksik x86 operand/LEA doğrulaması, exception region, generic sharing, dispatch ve diğer sürüm/platformlar açık. Sonraki P11 dilimi typed-CIL doğrulaması ve yanlış çift reddidir.
+
+Sözleşme, protokol, testler ve sınırlar: [izole IL2CPP worker'ı](IL2CPP_WORKER.tr.md).
+
+## 28. On yedinci uygulama paketi — P11 ikinci dilim: yanlış çift, LEA ve tipli CIL
+
+- **Yanlış çift reddi.** LibCpp2IL okunamayan pointer tablolarını sessizce sıfırla dolduruyor ve metodun pointer'ını token satır numarasıyla alıyor. Bu yüzden metadata binary'den daha az metot bildirirse metotlar hata vermeden kaymış adreslere eşleniyor. `Il2CppNativePairValidator` LibCpp2IL başlatıldıktan hemen sonra, recovery'den önce şunları karşılaştırıyor: tip boyut tablosu, codegen modül adları (metadata 24.2–27'de `assemblyIndex` sırası), modül başına metot pointer sayısı, okunabilen pointer dizileri ve pointer'ların binary içine eşlenmesi. Worker her işte açıyor (`RejectedPair`, exit 3); in-process import'un varsayılanı değişmedi. Doğru çift `Passed`: 49 image/modül, 3400 tip, 16.827 metot, 14.848 pointer.
+- **Gerçek negatif.** `build_il2cpp_fixture.py --pair-variant` aynı projeye tek bir korunmuş metot ekliyor. Varyant binary + orijinal metadata (sessiz yön) `RejectedPair` aldı; neden "Assembly-CSharp.dll has 17 method pointers; its metadata image declares 16 methods". Ters yönde LibCpp2IL kendisi `IndexOutOfRangeException` ile düşüyor. Varyantın kendi çifti `Passed` ve tam bir metot fazla.
+- **LEA dönüşümü ve tip çıkarımı.** Pinli lifter yığın dışı `lea`'yı bellek okumasıyla aynı ISIL'e çeviriyor; `lea eax,[rdi*8]` biçiminde index'i tamamen düşürüyor. Pinli `X86InstructionSet`'in alt sınıfı, native komutları Iced ile yeniden çözüp `Move reg, [bellek]` üreten komutları (kayıplı biçimler dahil) birebir hizalıyor. Yalnız LEA'ları SSA'dan önce `Add`/`Multiply`'a çeviriyor; hizalama tutmazsa hiçbir şey değişmiyor. Dar bir tip çıkarımı, sağlayıcının tipsiz bıraktığı bayrak/geçici değerleri yalnız bütün tanımlar uyuşursa Int32/Int64/Boolean yapıyor. İkisi de yalnız deneysel aday işinde ve x86-64'te kuruluyor.
+- **Kapı zinciri.** Seçili gövde ancak şu sırayla geçerse `RecoveredNative` oluyor: ön koşullar (constructor, pointer, generic veya paylaşılan adres → `SharedGenericBody`), `IsilChecked`, 17 önekli yer tutucu taraması, `StackHeightChecked`, `TypedCilChecked`. ISIL kapısı, IL üretecinin yer tutucu bırakmadan anlamı değiştirdiği yolları reddediyor. Tipli doğrulayıcı ECMA-335 doğrulama tipleriyle her yolu izleyen bir soyut yorumlayıcı; referans hiyerarşisini kontrol etmiyor. `BehaviorValidation` üründe her zaman `NotRun`.
+- **Davranış sonucu.** `Step`, `Affine`, `Branch` ve `Sum` bütün kapılardan geçti. Oracle replay'de bu dört gövdenin **16/16** gözlemi native oyuncuyla eşleşti; `Affine`'deki `int.MaxValue` taşması da buna dahil. `Divide` (çözülemeyen runtime helper çağrısı) ve `Echo<T>` (paylaşılan gövde) stub kaldı, yanlış kurtarma iddiası yok. Karşılaştırma: P10 ham çıktısı 0/20, stack düzeltmesi 10/20. Sonuç bu corpus'un altı metoduna aittir.
+- **Rapor, protokol ve kaynaklar.** Raporda yeni alanlar: `RecoveryCapability`, `PairValidation`, `MethodBodies.RecoveredNative`. Protokol şeması 2. Ana süreç şunları reddediyor: eksik çift doğrulaması, `Unknown≠0`, kapı zinciri eksik veya generic `RecoveredNative`, sayaç uyuşmazlığı. Seçili her metot için native disassembly, ISIL ve CIL içeren hash'li `Evidence/NNNNN.txt` sidecar'ı yazılıyor. `MaxHeapMegabytes` (`DOTNET_GCHeapHardLimit`) ile `RetainInputSnapshots` eklendi; SystemTester'a karşılık gelen iki seçenek geldi.
+- **Test turu.** Kod önce testsiz yazıldı. Toplu tur dört hata buldu ve hepsi düzeltildi: geçerli çifte sahte red (modül sırası), negatif displacement'ta checked taşma, yalnız-index LEA kaybı, tipsiz geçici değerler. LibCpp2IL başlatma hataları artık iç istisnasıyla raporlanıyor.
+- **Doğrulama.** Kontrollü `Il2CppWorker` **69/69**, corpus etkin `Il2CppWorkerNative` **8/8**. Bütün corpus'lar ve Editor etkin tam solution Debug **901/901** (8 proje), build **0 uyarı / 0 hata**. Release **900/900**: yalnız bilinen Debug.Assert vakası dışarıda; build **0 hata / 1 mevcut Animator TODO uyarısı**. SystemTester uçtan uca:
+  - Doğru çift: worker `Completed`, çift `Passed`, girdi kopyaları silindi. Vaka sonucu worker'sız koşuyla aynı (mevcut GUISkin MonoBehaviour hatası).
+  - Export ağacı: yalnız worker'sız koşuların kendi arasında da değişen 68 deterministik olmayan dosyada ayrışıyor.
+  - Sessiz yanlış çift: worker ile `RejectedPair`, in-process import'ta fark edilmeden 49 assembly.
+
+  Windows/macOS ve uzak CI koşulmadı.
+- **Genel plan bitmedi.** P11 kabul kapısının üç ayağı bu corpus'ta karşılandı: stub/recovered ayrımı, yanlış metadata çifti ve davranış testleri. Kapsam tek sürüm/platform ve altı metotla sınırlı. Açık kalanlar:
+  - Çözülemeyen runtime helper çağrıları ve exception region.
+  - Generic sharing matrisi, virtual/interface dispatch.
+  - P10 deneyinin worker'a taşınması.
+  - Referans hiyerarşisi doğrulaması.
+  - Daha büyük/stripped corpus'lar ve diğer sürüm/platformlar.
+
+Sözleşme, kapılar, ölçüm ve testler: [izole IL2CPP worker'ı](IL2CPP_WORKER.tr.md).
+
+## 29. On sekizinci uygulama paketi — P11 kapanışı
+
+- **Kabul kapısı.** P11'in üç ayağı kaynak sahibi corpus'larda karşılandı:
+  - Stub/recovered ayrımı.
+  - Yanlış metadata çifti reddi (gerçek tek metotlu varyant build ile).
+  - Davranış testleri (oracle replay'i, virtual ve interface dispatch dahil).
+
+  `RecoveredNative` yalnız bu replay ile doğrulanmış x86-64 lifter yolunda veriliyor.
+- **Referans hiyerarşisi.** Tipli doğrulayıcı, Cpp2IL'in AsmResolver `RuntimeContext`'i ile nesne referanslarını base tip ve interface zinciri üzerinden kontrol ediyor; aynı kontrol receiver ve alan sahibine de uygulanıyor. Çözülemeyen tip reddediliyor.
+- **Dispatch.** Replay `Step` gözlemlerini `AbstractCounter.Step` ve `ICounter.Step` üzerinden de çalıştırıyor; orijinal corpus **6/6**. Stripped corpus'ta kimse interface üzerinden çağırmadığı için UnityLinker `ICounter`'ı sildi; kalan virtual yüzey **3/3**.
+- **Generic paylaşım.** Her generic metot için concrete instantiation, pointer ve paylaşım sayısı raporlanıyor. `Echo<T>`'nin `Echo<int>` ve `__Il2CppFullySharedGenericType` gövdeleri ayrı; politika gereği stub.
+- **Yeni corpus'lar.** Builder'a `--stripped` (Preserve yok, High stripping) ve `--target android-arm64` (emulator'da arm64-v8a çeviriyle 20/20 oracle) eklendi.
+  - Stripped: 46 image, 2722 tip, 12.708 metot; aynı dört gövde **16/16**.
+  - ARM64: çift `Passed` (`ArmV8`, 18 image, 2347 tip, 12.354 metot); metadata-only import çalışıyor.
+  - Çapraz mimari çiftlerde LibCpp2IL registration bulamıyor (`AnalysisFailed`).
+- **ARMv8 bulgusu.** Pinli eski ARM64 lifter ISIL üretmiyor; yeni lifter tip açısından geçerli ama yanlış gövde üretiyor.
+  - Aliasing olmadan: `Wn`/`Xn` ayrımı yüzünden `Affine` `return x` oluyor.
+  - Aliasing ile: `UBFM` takma adı ters yönde çevriliyor, `Sum`'ın döngüsü kayboluyor; replay 1/5, 2/4, 2/4.
+  - Karar: ARMv8'de `UntrustedLifter`, kurtarma yok. Yapısal ve tipli kapıların davranış kanıtı yerine geçmediğinin somut örneği.
+- **Phase dışı.**
+  - `Divide`'ın `catch` bölgesi native C++ exception tablolarında; bu araştırma kapsamında.
+  - P10 in-host deneyi tarihsel kayıt olarak kalıyor; izole karşılığı worker aday denemesi.
+  - Kurulu 2022.2.16f1'de Linux IL2CPP modülü olmadığı için ikinci Unity sürümü yerelde ölçülemedi.
+- **Doğrulama.** IL2CPP kategorileri **116/116**. Bütün corpus'lar ve Editor etkin tam solution Debug **911/911** (build 0 uyarı / 0 hata), Release **910/910** (bilinen Debug.Assert vakası dışarıda; 0 hata / 1 mevcut Animator TODO uyarısı). Windows/macOS ve uzak CI koşulmadı.
+
+Sözleşme, kapanış tablosu ve ARMv8 ölçümü: [izole IL2CPP worker'ı](IL2CPP_WORKER.tr.md#p11-kapanışı).
+
+## 30. On dokuzuncu uygulama paketi — P12 SerializedFile 23 (sentetik phase doğrulaması)
+
+- **Durum:** Sentetik v23 phase sonu testleri tamamlandı; P12 **45/45 Debug ve Release**. Kullanıcı kararıyla Unity 6000.5 kurulmadı; roadmap'in gerçek-repro kabul kapısı açık.
+- **Ölçülen sorun.**
+  - Bu checkout'taki bütün 6000.4.0f1 corpus'ları SerializedFile 22.
+  - 6000.5.0a5+ sürüm 23 yazıyor ([#2304](https://github.com/AssetRipper/AssetRipper/issues/2304)).
+  - Mevcut tanıma, enum dışı sürümü serialized saymadığı için 6000.5 dosyaları sessizce kaynak dosyası oluyor; export "0.0.0a0" ile asset'siz "başarıyla" bitiyor.
+- **Açık hata.** v22 header düzenine uyan, 24–64 arası bilinmeyen sürüm artık tanınıyor. Okuma, sürümü ve desteklenen en yüksek sürümü bildiren tipli bir istisnayla `FailedFile`/`ImportFailure` oluyor. Bu istisna `IOException` değil, P04 politikasına göre kurtarılabilir.
+- **Format 23.** Bakımcının "Preliminary" dalındaki düzen bu checkout'ta ayrıca uygulandı:
+  - TypeTree'li tipte `Hash128` + `int32` boyut; boyut 0 ise TypeTree dosya dışında.
+  - Satır içi ağaçta sayısal `0x7474686D` + format sürümü header'ı, dosyanın endianness'iyle.
+  - Okuma ve yazma simetrik.
+  - Extracted tipler mevcut TypeTree'siz yola (assembly şeması, üretilmiş okuyucular) düşüyor. Ayrı TypeTree arşivleri okunmuyor.
+- **Rapor.** Collection'da format sürümü ve extracted sayısı. Bunlara ek olarak:
+  - Import uyarısı.
+  - `collection-export-report.json` `ExtractedTypeTrees` (başarısızlık sayılmaz).
+  - Ham kurtarma kaydında sayaç.
+  - TypeTree döküm aracında açık gösterim.
+- **Engine şemaları.** `AssetRipper.SourceGenerated` 1.4.0 zaten 6000.5–6000.7 sınıf düzenleri taşıyor. Issue'daki PlayerSettings uyuşmazlığı bu pinde doğrulanmadı.
+- **Test kapsamı.** Üretim yazıcısından bağımsız bayt fixture'ı ile iki endian, sekiz inline/dış ağaç kombinasyonu, hash baytları, 64 bit PathID, dependency ve `RefTypes`. Gerçek import hataları iki export raporuna taşındı; sağlam asset'ler yazıldı. Üretilmiş engine okuyucusu, ham kurtarma journal'ı ve import uyarısı doğrulandı. Hash denetimli 6000.4 scalar/SerializeReference/prefab corpus'larının metadata'sı v23'e dönüştürüldü: alanlar, alias/cycle ve 25 prefab PPtr bağı korundu; iki exporter'ın C#/metin çıktıları v22 ile aynı hash'leri verdi. Bunlar gerçek 6000.5 dosyası değildir.
+- **Düzeltmeler.** Kısa extended header probe'unda taşma, dependency Int32 dizisinin bir baytlık elemanlarla yazılması, tip eşitliğinde dış TypeTree kimliğinin eksikliği düzeltildi. TypeTree aracının hash yerine C# tip adını yazması ve yalnız dış ağaçlı dosyada metin dökümü üretmemesi de gerçek CLI koşusuyla düzeltilip doğrulandı. v22 için iki endian dependency regresyonu eklendi.
+- **Doğrulama.** P12 **45/45 Debug ve Release**; corpus olmadan **39 geçti / 6 NotExecuted**. Bütün corpus'lar ve kurulu Editor etkin tam solution Debug **960/960** (8 test projesi, build 0 uyarı / 0 hata), Release **959/959** (yalnız bilinen `ExportIdHandlerTests.GetMainExportID_ValueGreaterThan100000_DebugAssertFails` dışarıda; build 0 hata / 2 mevcut SpriteConverter/Animator TODO uyarısı). Native Editor retry gerekmedi. İki yapılandırmada ayrı ayrı 24 kanıt grubunda 38 binary hash'i doğrulandı; dört v22–v23 script/metin export çifti eşleşti. Kaynak hash'leri, TRX, CLI dökümü ve artifact denetimleri `Source/0Bins/TestResults/P12-20261020/` altında.
+- **Genel plan bitmedi.** Gerçek 6000.5 repro'su, extracted TypeTree arşivleri ve doğrulanmamış format varsayımları (boyutun kapsamı, hash girdisi, marker byte sırası, `RefTypes`, header) açık. Uzak CI koşulmadı.
+
+Sözleşme, varsayımlar ve test sonuçları: [SerializedFile 23](SERIALIZED_FILE_23.tr.md).
+
+## 31. Yirminci uygulama paketi — P13 çoklu assembly ve Unity referans bütünlüğü
+
+- **Gerçek corpus.** Kaynak sahibi Unity **6000.4.0f1 / Linux64 / Mono** projesinde üç assembly: ortak model/base/interface, custom component ve `Assembly-CSharp` köprü component. Kaynak scene/prefab yeniden açılıp bağımsız alan, nesne kimliği ve aritmetik/interface oracle'ıyla denetlendi. İki TypeTree modu, üç gerçek DLL ve kaynaklar **36 hash'li girdide** korundu. Unity 6000.5 kurulmadı.
+- **Yanlış başarı düzeltmesi.** Gerçek corpus'un yalnız bellekteki metadata'sına kullanılmayan `Missing.Unused.Dependency` eklendiğinde eski export C# üretimini ve job'u başarılı sayıyordu; asmdef ise olmayan assembly'ye başvuruyordu. Kontrol önce **Expected False / Actual True** ile başarısız oldu. Yeni `UnityAssemblyReferenceFailures` listesi, owner/normalize identity/reason taşır ve script/job sonucunu başarısız yapar. Eksik ilişki korunur; hayali DLL/paket üretilmez. Üretilen source ve saved DLL referansları sırasıyla `references` ve `precompiledReferences`/`overrideReferences` kullanır; predefined source assembly'ye geçersiz asmdef referansı reddedilir.
+- **Reader/Editor kanıtı.** İki şema × external var/yok dört reader vakası inherited/private/ortak tip alanlarını ve **12 PPtr bağını** korudu. İki şema × Decompiled/Hybrid dört gerçek Editor projesi; C# derleme, missing-script, assembly/base/field tipi, GUID/fileID ve nesne eşitliği doğrulandı. Her pozitif vakada altı doğrudan ve üç interface çağrısı oracle'la eşleşti. Hybrid custom DLL kullanımı açıkça ayrı raporlandı; orijinal `Assembly-CSharp.dll` Assets'e verilmedi.
+- **Negatif kapılar.** Eksik asmdef bağı, silinen Hybrid model DLL'si ve yanlış DLL script fileID'si gerçek Editor'de reddedildi. Compiler hatasında semantic checker çalışmış sayılmıyor. Ayrı metadata regresyonunda üç C# üretimi başarılı kalırken artifact doğrulaması başarısız. Dört deterministik writer sözleşmesi ve altı kurulumsuz manifest kontrolü eklendi. Ham PluginImporter Editor bayrağının, Any/exclude ayarlarından bağımsız yorumlanamayacağı gerçek DLL import'uyla ölçüldü.
+- **Doğrulama.** Tam Debug **982/982**, Release **981/981** (yalnız bilinen `ExportIdHandlerTests.GetMainExportID_ValueGreaterThan100000_DebugAssertFails` dışarıda); yeni kategori **22/22 Debug ve Release**. Son Release build **0 uyarı / 0 hata**. Corpus yokken **10 geçti / 12 NotExecuted**; yalnız executable yokken **15 geçti / 7 NotExecuted**. Her yapılandırmada 432 corpus kopyası + 119 snapshot hash'i, 8 GUID/fileID bağı ve 36 Editor davranış gözlemi ayrıca eşleşti. Özgün 36 corpus girdisi değişmedi; native Editor retry gerekmedi. Kaynak hash'leri, TRX ve artifact denetimleri `Source/0Bins/TestResults/P13-AssemblyGraph-20261020/` altında. JSON/Evidence CI yolları eklendi; uzak CI koşulmadı.
+- **Genel plan sürüyor.** Özgün asmdef GUID/platform/define/version constraints, paket sürümleri, cycle/ABI ve genel source/DLL karma proje matrisi açık. Bu dilim tek sürüm/platform Mono kanıtıdır; Play Mode ve IL2CPP kurtarma başarısı sayılmaz. P12 gerçek v23 kapısı açık. Sonraki bağımsız ürün dilimi P14'te collection sahipliği ve bilinen dependency closure'ı koruyan seçici export'tur.
+
+## 32. P14 — Seçici export: atomik collection ve ileri referans kapsamı
+
+Uygulama ve kullanım: [SELECTIVE_EXPORT.tr.md](SELECTIVE_EXPORT.tr.md).
+
+- `ExportSettings.Selection` üzerinden class/name/PathID/source collection filtreleri; aynı alanda OR, alanlar arasında AND. İki exporter doğrudan predicate de kabul eder. Boş filtre mevcut tam export yoludur.
+- `ExportSelectionPlan`, hazırlanıp doğrulanmış üyelikleri kullanır. Seçili asset'in prefab/sahne/diğer atomik grubu bütünüyle korunur; grubun ileri PPtr referansları visited set ve kuyrukla takip edilir. PathID dosyalar arasında tekil sayılmaz.
+- Rapor doğrudan kökleri, genişletilmiş nesneleri ve nedenlerini, job-local kimlik/owner indeksini, export edilebilen ve reference/skip collection'ları ayrı gösterir. Bilinmeyen MonoBehaviour/raw alanlar ve çözülemeyen referanslar `Incomplete` üretir. Bilinen alt küme yazılır, iş başarı sayılmaz. Eşleşmeyen veya standalone export'u olmayan kökler diğer başarılı köklerin arkasında gizlenmez.
+- Primary-content script sahipliği bütün MonoScript'leri kapsar. Daha sonraki bir script seçimi ilk script'in arkasındaki `EmptyExportCollection` nedeniyle atlanmaz. Script/assembly çıktısı mevcut atomik kapsamını korur.
+- Gerçek sahne kontrolü, pinli SourceGenerated 1.4.0 NavMeshSettings dependency iterator'ının aynı null pointer'ı sonsuza kadar ürettiğini gösterdi. Seçim katmanı bu sınıfın eski/yeni pointer alanlarını doğrudan birer kez okur; Unity 4.7 ve 6000.4 null/dolu pointer regresyonları vardır. Durdurulan tam koşu ve kontrollü reproducer son doğrulama yerine sayılmaz.
+- İlgisiz preparation hataları seçili closure'ın sonucuna taşınmaz; fatal I/O/iptal/bellek hataları ve global import/assembly/raw-recovery başarısızlıkları korunur. Seçili okunamayan MonoBehaviour'ın ham payload'ı saklanır.
+- SystemTester tekrarlanabilen `--select-class-id`, `--select-name`, `--select-path-id`, `--select-collection` seçeneklerini sunar. Seçili export'ta StreamingAssets klasörü topluca kopyalanmaz; path-ID haritası filtrelenir. Proje scaffolding'i, özgün assembly arşivi ve recovery kanıtları mevcut global kapsamındadır.
+
+**Bu P14 diliminin phase sonu kabulü tamamlandı.** Tam Debug **1021/1021**, tam Release **1020/1020**; yeni seçim kategorisi iki yapılandırmada **39/39**. Release'te yalnız bilinen `ExportIdHandlerTests.GetMainExportID_ValueGreaterThan100000_DebugAssertFails` dışarıda. İki tam koşunun vaka farkı yalnız bu testtir. Son solution derlemeleri 0 uyarı / 0 hata; eski üç parametreli API köprüsü ayrıca 6/6 hedefli Debug kontrolünden geçti. CLI 16/16, gerçek iki bundle'lı path-ID harita karşılaştırması 4/4 iş olarak doğrulandı.
+
+Her yapılandırmada 402 corpus kopyası ve 104 snapshot hash'i, 8 script bağı, 36 davranış gözlemi, 10 sahne node'u ve 26 kullanıcı referansı denetlendi. Özgün iki corpus'un 57 girdisi değişmedi. Corpus yokken 27 geçti / 12 NotExecuted; yalnız Editor yokken 33 geçti / 6 NotExecuted.
+
+Sahne corpus'u `RenderSettings.m_SpotCookie (FileID=2, PathID=10001)` engine kaynağını içermez. Bu iki vaka **Incomplete / başarısız export** olarak raporlanır; Editor'de doğrulanan kullanıcı grafiği eksiksiz engine-state kabulü değildir. Eksik harici asset'in iki vakası da açık başarısız sonuç verir. Bu negatifler başarıya çevrilmedi. Durdurulan NavMesh koşusu, kontrollü reproducer, ara test hataları ve son doğrulama [phase kanıtında](../Source/0Bins/TestResults/P14-SelectiveExport-20261020/phase-verification.json) korunur.
+
+Kod önce yazıldı; kontroller dilim sonunda çalıştırıldı. Web seçim/arama UI, import streaming/bellek optimizasyonu, dinamik path/Addressables bağımlılıkları ve assembly başına kırpma bu dilime dahil değildir. P12 gerçek v23 kapısı ve P13'ün genel paket/asmdef/ABI matrisi açıktır. Genel yol haritası henüz bitmedi; sonraki kalite adaptörü P15'te tek format/codec ve gerçek corpus ile sınırlandırılmalıdır. Commit atılmadı.
+
+Sözleşme, üretim ve sınırlar: [çoklu assembly ve Unity referans grafiği](UNITY_ASSEMBLY_GRAPH.tr.md).

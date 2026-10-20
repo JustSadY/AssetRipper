@@ -13,6 +13,7 @@ namespace AssetRipper.Export.PrimaryContent.Scripts;
 public sealed class ScriptExportCollection : ExportCollectionBase
 {
 	public ScriptExportReport? LastReport { get; private set; }
+	private readonly IMonoScript[] scripts = [];
 
 	public ScriptExportCollection(ScriptContentExtractor contentExtractor)
 	{
@@ -25,12 +26,17 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 		if (languageVersion != LanguageVersion) LanguageSelection = ScriptLanguageSelection.Explicit(languageVersion);
 	}
 
+	internal ScriptExportCollection(ScriptContentExtractor contentExtractor, IMonoScript firstScript) : this(contentExtractor)
+	{
+		scripts = firstScript.Collection.Bundle.FetchAssetsInHierarchy().OfType<IMonoScript>().ToArray();
+	}
+
 	public override ScriptContentExtractor ContentExtractor { get; }
 
 	public LanguageVersion LanguageVersion => LanguageSelection.Effective;
 	public ScriptLanguageSelection LanguageSelection { get; }
 
-	public override IEnumerable<IUnityObjectBase> Assets => [];
+	public override IEnumerable<IUnityObjectBase> Assets => scripts;
 
 	public override string Name => nameof(ScriptExportCollection);
 
@@ -42,6 +48,7 @@ public sealed class ScriptExportCollection : ExportCollectionBase
 		ScriptExportReport report = new()
 		{
 			ScriptingBackend = assemblyManager.ScriptingBackend,
+			Il2CppRecovery = assemblyManager.Il2CppRecovery,
 			LanguageSelection = LanguageSelection,
 			ProjectScaffoldFramework = ProjectFileWriter.ScaffoldFramework,
 		};

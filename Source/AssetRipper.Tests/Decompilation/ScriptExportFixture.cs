@@ -16,11 +16,14 @@ namespace AssetRipper.Tests.Decompilation;
 internal sealed class ScriptExportFixture : BaseManager
 {
 	private readonly AssemblyDefinition fixture;
-	public override ScriptingBackend ScriptingBackend => ScriptingBackend.Mono;
+	private readonly Il2CppRecoveryReport? il2CppRecovery;
+	public override Il2CppRecoveryReport? Il2CppRecovery => il2CppRecovery;
+	public override ScriptingBackend ScriptingBackend => il2CppRecovery is null ? ScriptingBackend.Mono : ScriptingBackend.IL2Cpp;
 	public override IEnumerable<AssemblyDefinition> GetAssemblies() => fixture is null ? [] : [fixture];
 
-	public ScriptExportFixture(byte[] assembly, IEnumerable<(string File, byte[] Bytes)> references) : base(_ => { })
+	public ScriptExportFixture(byte[] assembly, IEnumerable<(string File, byte[] Bytes)> references, Il2CppRecoveryReport? il2CppRecovery = null) : base(_ => { })
 	{
+		this.il2CppRecovery = il2CppRecovery;
 		foreach (var reference in references) Read(new MemoryStream(reference.Bytes, writable: false), reference.File);
 		fixture = Read(new MemoryStream(assembly, writable: false), "ManagedRoundTrip.dll");
 	}

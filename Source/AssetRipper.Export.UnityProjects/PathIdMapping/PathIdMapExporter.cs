@@ -10,7 +10,7 @@ using System.Text.Json;
 
 namespace AssetRipper.Export.UnityProjects.PathIdMapping;
 
-public sealed class PathIdMapExporter : IPostExporter
+public sealed class PathIdMapExporter(IReadOnlySet<IUnityObjectBase>? selectedAssets = null) : IPostExporter
 {
 	public void DoPostExport(GameData gameData, FullConfiguration settings, FileSystem fileSystem)
 	{
@@ -21,9 +21,9 @@ public sealed class PathIdMapExporter : IPostExporter
 			{
 				Name = collection.Name,
 			};
-			gameInfo.Files.Add(fileInfo);
 			foreach (IUnityObjectBase asset in collection)
 			{
+				if (selectedAssets is not null && !selectedAssets.Contains(asset)) continue;
 				if (asset is IMesh or ITexture or IAudioClip or ITextAsset)//Commonly useful asset types
 				{
 					fileInfo.Assets.Add(new()
@@ -34,6 +34,7 @@ public sealed class PathIdMapExporter : IPostExporter
 					});
 				}
 			}
+			if (selectedAssets is null || fileInfo.Assets.Count > 0) gameInfo.Files.Add(fileInfo);
 		}
 
 		string outputDirectory = settings.AuxiliaryFilesPath;

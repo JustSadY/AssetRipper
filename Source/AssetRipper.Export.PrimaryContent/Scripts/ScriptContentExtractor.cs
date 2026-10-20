@@ -11,7 +11,7 @@ public sealed class ScriptContentExtractor : IContentExtractor
 	public IAssemblyManager AssemblyManager { get; }
 	public LanguageVersion LanguageVersion => LanguageSelection.Effective;
 	public ScriptLanguageSelection LanguageSelection { get; }
-	private bool first = true;
+	private ScriptExportCollection? collection;
 	public ScriptContentExtractor(IAssemblyManager assemblyManager, LanguageVersion languageVersion = LanguageVersion.Latest)
 		: this(assemblyManager, ScriptLanguageSelection.Explicit(languageVersion))
 	{
@@ -27,8 +27,8 @@ public sealed class ScriptContentExtractor : IContentExtractor
 	{
 		if (asset is IMonoScript)
 		{
-			exportCollection = first ? new ScriptExportCollection(this) : EmptyExportCollection.Instance;
-			first = false;
+			// All scripts share one assembly export, even when selection starts at a later MonoScript.
+			exportCollection = collection ??= new ScriptExportCollection(this, (IMonoScript)asset);
 			return true;
 		}
 		else

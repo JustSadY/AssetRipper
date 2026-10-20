@@ -17,6 +17,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--managed-references", action="store_true", help="Generate the shared/cyclic SerializeReference graph corpus")
     modes.add_argument("--scenes", action="store_true", help="Generate the hierarchy and cross-root scene-reference corpus")
+    modes.add_argument("--prefabs", action="store_true", help="Generate the base, variant and nested prefab corpus")
     args = parser.parse_args()
     template = Path(__file__).resolve().parent / "MonoBehaviourPayload"
     output = args.output.resolve()
@@ -28,7 +29,7 @@ def main():
     log = workspace / "editor.log"
     env = dict(os.environ, ASSETRIPPER_UNITY_FIXTURE_OUTPUT=str(output))
     command = [str(args.unity.resolve()), "-batchmode", "-nographics", "-projectPath", str(project),
-               "-executeMethod", "SceneFixtureBuilder.Build" if args.scenes else "GraphFixtureBuilder.Build" if args.managed_references else "PayloadFixtureBuilder.Build", "-quit", "-logFile", str(log)]
+               "-executeMethod", "PrefabGraphFixtureBuilder.Build" if args.prefabs else "SceneFixtureBuilder.Build" if args.scenes else "GraphFixtureBuilder.Build" if args.managed_references else "PayloadFixtureBuilder.Build", "-quit", "-logFile", str(log)]
     print(f"Disposable project: {project}", flush=True)
     print(f"Editor log: {log}", flush=True)
     with (workspace / "stdout.log").open("w") as stdout:
@@ -46,7 +47,7 @@ def main():
         if hashlib.sha256((output / path).read_bytes()).hexdigest() != entry["Sha256"]:
             raise RuntimeError(f"Fixture hash mismatch: {path}")
     print(f"Verified {len(manifest['Files'])} fixture files: {output}")
-    variable = "ASSETRIPPER_UNITY_SCENE_FIXTURE" if args.scenes else "ASSETRIPPER_UNITY_MANAGED_REFERENCE_FIXTURE" if args.managed_references else "ASSETRIPPER_UNITY_PAYLOAD_FIXTURE"
+    variable = "ASSETRIPPER_UNITY_PREFAB_FIXTURE" if args.prefabs else "ASSETRIPPER_UNITY_SCENE_FIXTURE" if args.scenes else "ASSETRIPPER_UNITY_MANAGED_REFERENCE_FIXTURE" if args.managed_references else "ASSETRIPPER_UNITY_PAYLOAD_FIXTURE"
     print(f"{variable}={output}")
 
 

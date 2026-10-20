@@ -48,6 +48,27 @@ project reimport. Three clone regressions run without Unity; the other 11 cases
 need the corpus and, for five of them, the Editor executable. See
 [the graph contract](../../docs/UNITY_MANAGED_REFERENCES.tr.md).
 
-New corpus builds archive all runtime and builder C# sources in this template;
-both modes currently produce 20 hashed files. The original 18-file scalar/PPtr
-corpus remains valid.
+Use `--scenes` to generate a separate scene-bundle corpus with five GameObjects,
+two script components, inactive children, transforms and 13 object-reference
+fields. Set `ASSETRIPPER_UNITY_SCENE_FIXTURE` and the same Editor/reference
+variables, then run `--filter TestCategory=UnityScene`. Eight naming regressions
+run without Unity; six bundle checks need the corpus and seven reimport checks
+also need the Editor executable. The pinned scene corpus retains MonoBehaviour
+type trees in both build modes, including `DisableWriteTypeTree`. A separately
+reported controlled case withholds that metadata from the parser to test the
+assembly fallback, without changing any input bytes. See
+[the scene contract](../../docs/UNITY_SCENE_ROUNDTRIP.tr.md).
+
+New corpus builds archive all runtime and builder C# sources in this template.
+Use `--prefabs` to generate base, variant and nested prefabs with effective
+overrides and cross-prefab object references. Set `ASSETRIPPER_UNITY_PREFAB_FIXTURE`
+and the Editor/reference variables, then run `--filter TestCategory=UnityPrefab`.
+Four report regressions always run; four reader and two primary-export cases
+need the corpus; six reimport cases also need the Editor executable. The checker
+reports effective data and authoring relations separately: flattened regular
+prefabs with correct values are a **partial** reconstruction. See
+[the prefab graph contract](../../docs/UNITY_PREFAB_GRAPH.tr.md).
+
+The prefab graph corpus has 27 hashed files; new scene builds have 22 and new
+scalar/graph builds have 23. Previously generated 18-file scalar, 20-file
+scalar/graph and 21-file scene corpora remain valid.

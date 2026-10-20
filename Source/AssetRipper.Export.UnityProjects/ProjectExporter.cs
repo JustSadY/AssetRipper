@@ -1,6 +1,7 @@
 ﻿using AssetRipper.Assets;
 using AssetRipper.Assets.Bundles;
 using AssetRipper.Export.Collections;
+using AssetRipper.Export.Configuration;
 using AssetRipper.Import.Configuration;
 using AssetRipper.Import.Logging;
 using AssetRipper.IO.Files.Exceptions;
@@ -12,6 +13,8 @@ public sealed partial class ProjectExporter
 {
 	public bool? LastExportSucceeded { get; private set; }
 	public CollectionExportReport? LastReport { get; private set; }
+	public IReadOnlySet<IUnityObjectBase>? LastSelectedAssets { get; private set; }
+	private readonly ExportSelectionSettings? selectionSettings;
 
 	public event Action? EventExportPreparationStarted;
 	public event Action? EventExportPreparationFinished;
@@ -78,17 +81,33 @@ public sealed partial class ProjectExporter
 	}
 
 	public void Export(GameBundle fileCollection, CoreConfiguration options, FileSystem fileSystem)
+		=> Export(fileCollection, options, fileSystem, null);
+
+	public void Export(GameBundle fileCollection, CoreConfiguration options, FileSystem fileSystem, Predicate<IUnityObjectBase>? predicate)
 	{
 		LastExportSucceeded = false;
+		LastSelectedAssets = null;
+		Predicate<IUnityObjectBase>? configured = selectionSettings?.CreatePredicate();
+		Predicate<IUnityObjectBase>? selection = predicate is null ? configured : configured is null ? predicate : a => configured(a) && predicate(a);
+		IUnityObjectBase[] inventory = fileCollection.FetchAssets().ToArray();
 		CollectionExportReport report = LastReport = CollectionExportReport.Create("UnityProject", fileCollection);
-		report.CaptureMonoBehaviourFailures(fileCollection, options.ExportRootPath, fileSystem);
+		if (selection is null) report.CaptureMonoBehaviourFailures(inventory, options.ExportRootPath, fileSystem);
 		EventExportPreparationStarted?.Invoke();
-		List<PreparedExportCollection> collections = CreateCollections(fileCollection, report);
+		List<PreparedExportCollection> collections = CreateCollections(inventory, report, selection is not null);
+		if (selection is not null)
+		{
+			ExportSelectionPlan plan = ExportSelectionPlan.Create(inventory,
+				collections.Select(c => new ExportSelectionUnit(c.Collection, c.Seed, c.Assets, c.Name, c.Exportable)).ToArray(), selection);
+			LastSelectedAssets = plan.IncludedAssets;
+			report.ApplySelection(plan);
+			report.CaptureMonoBehaviourFailures(plan.IncludedAssets, options.ExportRootPath, fileSystem);
+			collections = plan.CollectionIndices.Select(i => collections[i]).ToList();
+		}
 		report.Write(options.ExportRootPath, fileSystem);
 		EventExportPreparationFinished?.Invoke();
 
 		EventExportStarted?.Invoke();
-		ProjectAssetContainer container = new(this, options, fileCollection.FetchAssets(),
+		ProjectAssetContainer container = new(this, options, inventory,
 			collections.Select(c => (c.Collection, (IEnumerable<IUnityObjectBase>)c.Assets)).ToArray());
 		int exportableCount = collections.Count(c => c.Exportable);
 		int currentExportable = 0;
@@ -134,12 +153,12 @@ public sealed partial class ProjectExporter
 		EventExportFinished?.Invoke();
 	}
 
-	private List<PreparedExportCollection> CreateCollections(GameBundle fileCollection, CollectionExportReport report)
+	private List<PreparedExportCollection> CreateCollections(IEnumerable<IUnityObjectBase> inventory, CollectionExportReport report, bool selective)
 	{
 		List<PreparedExportCollection> collections = new();
 		HashSet<IUnityObjectBase> queued = new();
 
-		foreach (IUnityObjectBase asset in fileCollection.FetchAssets())
+		foreach (IUnityObjectBase asset in inventory)
 		{
 			if (!queued.Contains(asset))
 			{
@@ -158,7 +177,9 @@ public sealed partial class ProjectExporter
 				catch (Exception exception) when (ExceptionPolicy.IsRecoverable(exception))
 				{
 					report.AddFailure("Preparation", asset.ClassName, asset, exception);
-					Logger.Error(LogCategory.Export, $"Failed to prepare {asset.ClassName} ({asset.PathID}) in '{asset.Collection.Name}'.", exception);
+					string diagnostic = $"Failed to prepare {asset.ClassName} ({asset.PathID}) in '{asset.Collection.Name}'.";
+					if (selective) Logger.Warning(LogCategory.Export, diagnostic + " " + exception);
+					else Logger.Error(LogCategory.Export, diagnostic, exception);
 				}
 				queued.Add(asset);
 			}

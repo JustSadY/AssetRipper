@@ -62,6 +62,26 @@ public sealed class SerializedFile : FileBase
 	public ReadOnlySpan<SerializedType> Types => m_types;
 	public ReadOnlySpan<LocalSerializedObjectIdentifier> ScriptTypes => m_scriptTypes;
 	public ReadOnlySpan<SerializedTypeReference> RefTypes => m_refTypes;
+	/// <summary>
+	/// Types and reference types whose type tree is stored outside this file (format 23+). Their objects are read
+	/// without the file's type tree.
+	/// </summary>
+	public int ExtractedTypeTreeCount
+	{
+		get
+		{
+			int count = 0;
+			foreach (SerializedType type in Types)
+			{
+				count += type.IsTypeTreeExtracted ? 1 : 0;
+			}
+			foreach (SerializedTypeReference type in RefTypes)
+			{
+				count += type.IsTypeTreeExtracted ? 1 : 0;
+			}
+			return count;
+		}
+	}
 	public bool HasTypeTree { get; private set; }
 	public Utf8String UserInformation { get; private set; } = Utf8String.Empty;
 

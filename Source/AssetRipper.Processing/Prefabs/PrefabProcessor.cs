@@ -72,7 +72,7 @@ public sealed class PrefabProcessor : IAssetProcessor
 			{
 				IPrefabInstance prefab = root.CreatePrefabForRoot(prefabInstanceCollection);
 
-				PrefabHierarchyObject prefabHierarchy = PrefabHierarchyObject.Create(prefabHierarchyCollection, root, prefab);
+				PrefabHierarchyObject prefabHierarchy = PrefabHierarchyObject.Create(prefabHierarchyCollection, root, prefab, prefabWasGenerated: true);
 				gameObjectsAlreadyProcessed.AddRange(prefabHierarchy.GameObjects);
 			}
 		}

@@ -31,6 +31,7 @@ public sealed class EmptyScriptExportCollection : ScriptExportCollectionBase
 		ScriptExportReport report = new()
 		{
 			ScriptingBackend = AssetExporter.AssemblyManager.ScriptingBackend,
+			Il2CppRecovery = AssetExporter.AssemblyManager.Il2CppRecovery,
 			ScriptContentLevel = AssetExporter.Decompiler.ScriptContentLevel,
 			LanguageSelection = AssetExporter.Decompiler.LanguageSelection,
 		};

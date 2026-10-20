@@ -7,6 +7,29 @@ internal static class UnityEditorRoundTripRunner
 {
 	internal static async Task<(int ExitCode, JsonDocument Report)> Run(string executable, string project, string output, string validator)
 	{
+		var run = await RunProcess(executable, project, output, validator);
+		Assert.That(run.CompilerErrors, Is.Empty, string.Join('\n', run.CompilerErrors));
+		string reportPath = Path.Combine(output, "editor-import-report.json");
+		Assert.That(File.Exists(reportPath), Is.True, $"Editor validation report missing. Exit {run.ExitCode}. Logs: {run.Logs}. Export: {output}");
+		TestContext.AddTestAttachment(reportPath, "Editor reimport of actual AssetRipper output; source-owned fixture");
+		return (run.ExitCode, JsonDocument.Parse(File.ReadAllText(reportPath)));
+	}
+
+	internal static async Task ExpectCompilerFailure(string executable, string project, string output, string validator, string sourceFile)
+	{
+		var run = await RunProcess(executable, project, output, validator);
+		Assert.That(run.ExitCode, Is.Not.Zero, "The deliberately broken assembly graph must fail compilation.");
+		Assert.That(run.CompilerErrors.Any(e => e.Contains("error CS", StringComparison.Ordinal) && e.Contains(sourceFile, StringComparison.Ordinal)), Is.True,
+			string.Join('\n', run.CompilerErrors));
+		Assert.That(File.Exists(Path.Combine(output, "editor-import-report.json")), Is.False, "A compiler failure must not masquerade as an executed semantic validator.");
+		File.WriteAllText(Path.Combine(output, "expected-compiler-failure.json"), JsonSerializer.Serialize(new
+		{
+			Validation = "CompilationRejected", SemanticValidation = "NotRun", run.ExitCode, run.CompilerErrors, SourceFile = sourceFile,
+		}, new JsonSerializerOptions { WriteIndented = true }));
+	}
+
+	private static async Task<(int ExitCode, string[] CompilerErrors, string Logs)> RunProcess(string executable, string project, string output, string validator)
+	{
 		string reportPath = Path.Combine(output, "editor-import-report.json");
 		string logs = Path.Combine(Path.GetTempPath(), "assetripper-editor-import-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(logs);
 		ProcessStartInfo start = new(executable) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
@@ -21,10 +44,7 @@ internal static class UnityEditorRoundTripRunner
 		string[] compilerErrors = File.Exists(Path.Combine(logs, "editor.log"))
 			? File.ReadLines(Path.Combine(logs, "editor.log")).Where(line => line.Contains("error CS", StringComparison.Ordinal) || line.Contains("Scripts have compiler errors", StringComparison.Ordinal)).ToArray() : [];
 		File.WriteAllText(Path.Combine(output, "editor-run.json"), JsonSerializer.Serialize(new { process.ExitCode, CompilerErrors = compilerErrors, FullLogs = logs }, new JsonSerializerOptions { WriteIndented = true }));
-		Assert.That(compilerErrors, Is.Empty, string.Join('\n', compilerErrors));
-		Assert.That(File.Exists(reportPath), Is.True, $"Editor validation report missing. Exit {process.ExitCode}. Logs: {logs}. Export: {output}");
-		TestContext.AddTestAttachment(reportPath, "Editor reimport of actual AssetRipper output; source-owned fixture");
-		return (process.ExitCode, JsonDocument.Parse(File.ReadAllText(reportPath)));
+		return (process.ExitCode, compilerErrors, logs);
 	}
 
 	internal static object[] Snapshot(string project, string output)

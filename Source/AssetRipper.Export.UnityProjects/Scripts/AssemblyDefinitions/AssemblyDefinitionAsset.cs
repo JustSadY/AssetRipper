@@ -10,6 +10,12 @@ public sealed class AssemblyDefinitionAsset
 	public List<string> References { get; set; }
 	[JsonPropertyName("allowUnsafeCode")]
 	public bool AllowUnsafeCode { get; set; }
+	[JsonPropertyName("overrideReferences")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+	public bool OverrideReferences { get; set; }
+	[JsonPropertyName("precompiledReferences")]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public List<string>? PrecompiledReferences { get; set; }
 
 	public AssemblyDefinitionAsset(string name)
 	{

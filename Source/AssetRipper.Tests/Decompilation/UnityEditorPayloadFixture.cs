@@ -53,20 +53,22 @@ internal sealed record UnityEditorPayloadFixture(string DirectoryPath, EditorFix
 	public EditorPayloadManager CreateManager()
 		=> CreateManager(DirectoryPath);
 
-	internal static EditorPayloadManager CreateManager(string directory)
+	internal static EditorPayloadManager CreateManager(string directory, params string[] assemblyNames)
 	{
 		string? editorData = Environment.GetEnvironmentVariable(PinnedUnityReferences.EditorDataEnvironmentVariable);
 		if (string.IsNullOrWhiteSpace(editorData)) throw new InvalidDataException("A configured Editor payload fixture requires ASSETRIPPER_UNITY_EDITOR_DATA; no host references are substituted.");
 		var references = PinnedUnityReferences.Load(PinnedUnityReferences.ReadManifest(), editorData, LocalFileSystem.Instance);
-		return new(File.ReadAllBytes(Path.Combine(directory, "Assembly-CSharp.dll")), references);
+		if (assemblyNames.Length == 0) assemblyNames = ["Assembly-CSharp"];
+		return new(assemblyNames.Select(name => File.ReadAllBytes(Path.Combine(directory, name + ".dll"))).ToArray(), references);
 	}
 
 	internal sealed class EditorPayloadManager : BaseManager
 	{
-		private readonly AssemblyDefinition fixture;
+		private readonly AssemblyDefinition[] fixtures;
 		public override ScriptingBackend ScriptingBackend => ScriptingBackend.Mono;
-		public override IEnumerable<AssemblyDefinition> GetAssemblies() => fixture is null ? [] : [fixture];
-		public EditorPayloadManager(byte[] image, PinnedUnityReferences references) : base(_ => { })
+		public override IEnumerable<AssemblyDefinition> GetAssemblies() => fixtures ?? [];
+		public EditorPayloadManager(byte[] image, PinnedUnityReferences references) : this([image], references) { }
+		public EditorPayloadManager(byte[][] images, PinnedUnityReferences references) : base(_ => { })
 		{
 			var corlibImage = references.Images.Single(i => Path.GetFileName(i.File) == "mscorlib.dll");
 			AssemblyDefinition corlib = AssemblyDefinition.FromBytes(corlibImage.Bytes, createRuntimeContext: false);
@@ -76,8 +78,8 @@ internal sealed record UnityEditorPayloadFixture(string DirectoryPath, EditorFix
 				AssemblyDefinition assembly = reference.File == corlibImage.File ? corlib : AssemblyDefinition.FromBytes(reference.Bytes, createRuntimeContext: false);
 				context.AddAssembly(assembly); Add(assembly);
 			}
-			fixture = AssemblyDefinition.FromBytes(image, createRuntimeContext: false);
-			context.AddAssembly(fixture); Add(fixture);
+			fixtures = images.Select(image => AssemblyDefinition.FromBytes(image, createRuntimeContext: false)).ToArray();
+			foreach (var fixture in fixtures) { context.AddAssembly(fixture); Add(fixture); }
 		}
 	}
 }

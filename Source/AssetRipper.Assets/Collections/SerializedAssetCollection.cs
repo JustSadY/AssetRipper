@@ -20,6 +20,14 @@ public sealed class SerializedAssetCollection : AssetCollection
 	{
 	}
 
+	/// <summary>The SerializedFile format version this collection was read from.</summary>
+	public FormatVersion SerializedFormat { get; private init; }
+	public bool HasTypeTree { get; private init; }
+	/// <summary>Types and reference types declared by the source file.</summary>
+	public int SerializedTypeCount { get; private init; }
+	/// <summary>Of those, types whose type tree is stored outside the file (format 23+).</summary>
+	public int ExtractedTypeTreeCount { get; private init; }
+
 	internal void InitializeDependencyList(IDependencyProvider? dependencyProvider)
 	{
 		if (Dependencies.Count > 1)
@@ -66,6 +74,10 @@ public sealed class SerializedAssetCollection : AssetCollection
 			Platform = file.Platform,
 			Flags = file.Flags,
 			EndianType = file.EndianType,
+			SerializedFormat = file.Generation,
+			HasTypeTree = file.HasTypeTree,
+			SerializedTypeCount = file.Types.Length + file.RefTypes.Length,
+			ExtractedTypeTreeCount = file.ExtractedTypeTreeCount,
 		};
 		try
 		{
@@ -90,7 +102,7 @@ public sealed class SerializedAssetCollection : AssetCollection
 		SerializedTypeReference[] referenceTypes = file.RefTypes.ToArray();
 		IRawObjectCollection? rawCollection = factory.RawObjectSink?.BeginCollection(new(
 			file.FilePath, file.Name, file.NameFixed, collection.Bundle.Name, collection.OriginalVersion.ToString(),
-			(int)file.Generation, (int)file.Platform, file.EndianType.ToString(), file.HasTypeTree));
+			(int)file.Generation, (int)file.Platform, file.EndianType.ToString(), file.HasTypeTree) { ExtractedTypeTrees = file.ExtractedTypeTreeCount });
 		Exception? readFailure = null;
 		foreach (ObjectInfo objectInfo in file.Objects)
 		{

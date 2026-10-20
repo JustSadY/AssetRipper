@@ -6,8 +6,32 @@ namespace AssetRipper.IO.Files.SerializedFiles.Parser.TypeTrees;
 
 public sealed class TypeTree : IEquatable<TypeTree?>
 {
+	/// <summary>
+	/// "tthm", read in the file's byte order. Format 23+ type trees start with it, followed by the format version.
+	/// </summary>
+	public const uint HeaderMagic = 0x7474686D;
+
+	public void Clear()
+	{
+		Nodes.Clear();
+		StringBuffer = [];
+	}
+
 	internal void Read(SerializedReader reader)
 	{
+		if (SerializedTypeBase.HasExtractedTypeTrees(reader.Generation))
+		{
+			uint magic = reader.ReadUInt32();
+			if (magic != HeaderMagic)
+			{
+				throw new InvalidDataException($"Invalid type tree header magic 0x{magic:X8}.");
+			}
+			int version = reader.ReadInt32();
+			if (version != (int)reader.Generation)
+			{
+				throw new InvalidDataException($"Type tree header version {version} differs from the file format version {(int)reader.Generation}.");
+			}
+		}
 		if (TypeTreeNode.IsFormat5(reader.Generation))
 		{
 			int nodesCount = reader.ReadInt32();
@@ -92,6 +116,11 @@ public sealed class TypeTree : IEquatable<TypeTree?>
 
 	internal void Write(SerializedWriter writer)
 	{
+		if (SerializedTypeBase.HasExtractedTypeTrees(writer.Generation))
+		{
+			writer.Write(HeaderMagic);
+			writer.Write((int)writer.Generation);
+		}
 		if (TypeTreeNode.IsFormat5(writer.Generation))
 		{
 			writer.Write(Nodes.Count);

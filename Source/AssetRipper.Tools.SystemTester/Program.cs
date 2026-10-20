@@ -5,6 +5,8 @@ using AssetRipper.Export.Scripts;
 using AssetRipper.Export.UnityProjects;
 using AssetRipper.Import.Logging;
 using AssetRipper.Import.Recovery;
+using AssetRipper.Import.Structure.Assembly.Managers;
+using AssetRipper.Import.Structure.Assembly.Workers;
 using AssetRipper.IO.Files;
 using AssetRipper.Processing;
 using System.Diagnostics;
@@ -27,7 +29,7 @@ internal static class Program
 			SystemTestReport report = new();
 			if (options.InputPaths.Count > 0)
 			{
-				report.Results.Add(RunCase("Input", options.InputPaths, options.OutputPath ?? Path.Join(AppContext.BaseDirectory, "Ripped"), options.RawOutputPath));
+				report.Results.Add(RunCase("Input", options.InputPaths, options.OutputPath ?? Path.Join(AppContext.BaseDirectory, "Ripped"), options.RawOutputPath, options.Worker, options.Selection));
 			}
 			else
 			{
@@ -45,7 +47,7 @@ internal static class Program
 		catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
 		{
 			Logger.Error(exception);
-			Console.Error.WriteLine("Usage: AssetRipper.Tools.SystemTester [--tests DIR | INPUT...] [--output DIR] [--raw-output DIR] [--report FILE]");
+			Console.Error.WriteLine("Usage: AssetRipper.Tools.SystemTester [--tests DIR | INPUT...] [--output DIR] [--raw-output DIR] [--report FILE] [--select-class-id INT] [--select-name NAME] [--select-path-id INT64] [--select-collection NAME] [--il2cpp-worker FILE] [--il2cpp-worker-dir DIR] [--il2cpp-worker-timeout SECONDS] [--il2cpp-worker-max-heap MIB] [--il2cpp-worker-discard-inputs]");
 			return 2;
 		}
 	}
@@ -69,7 +71,7 @@ internal static class Program
 				string outputPath = options.OutputPath is null
 					? Path.Join(testPath, "Output")
 					: Path.Join(options.OutputPath, versionName, testName);
-				report.Results.Add(RunCase($"{versionName}/{testName}", [inputPath], outputPath, options.RawOutputPath));
+				report.Results.Add(RunCase($"{versionName}/{testName}", [inputPath], outputPath, options.RawOutputPath, options.Worker, options.Selection));
 			}
 		}
 		if (report.Results.Count == 0)
@@ -79,7 +81,7 @@ internal static class Program
 		}
 	}
 
-	private static SystemTestResult RunCase(string name, IReadOnlyList<string> inputs, string requestedOutput, string? rawOutput)
+	private static SystemTestResult RunCase(string name, IReadOnlyList<string> inputs, string requestedOutput, string? rawOutput, Il2CppWorkerOptions? worker, ExportSelectionSettings selection)
 	{
 		Stopwatch stopwatch = Stopwatch.StartNew();
 		CountingLogger counter = new();
@@ -93,6 +95,7 @@ internal static class Program
 		RawObjectStore? rawRecovery = null;
 		CollectionExportReport? collectionExport = null;
 		AssemblyResolutionReport? assemblyResolution = null;
+		Il2CppWorkerRun? workerRun = null;
 		bool succeeded = false;
 		try
 		{
@@ -105,9 +108,12 @@ internal static class Program
 			}
 			FullConfiguration settings = new();
 			settings.ImportSettings.RawRecoveryDirectory = rawOutput;
+			settings.ImportSettings.Il2CppWorker = worker;
+			settings.ExportSettings.Selection = selection;
 			ExportHandler handler = new(settings);
 			GameData data = handler.Load(inputs, LocalFileSystem.Instance);
 			rawRecovery = data.RawRecovery;
+			workerRun = (data.AssemblyManager as IsolatedIL2CppManager)?.WorkerRun;
 			using (data.AssemblyManager)
 			{
 				version = data.ProjectVersion.ToString();
@@ -138,6 +144,7 @@ internal static class Program
 		}
 		catch (Exception exception) when (exception is not OutOfMemoryException and not OperationCanceledException)
 		{
+			if (exception is Il2CppWorkerException workerException) workerRun = workerException.Run;
 			error = exception.ToString();
 			Logger.Error(LogCategory.General, $"Test '{name}' failed.", exception);
 		}
@@ -146,7 +153,7 @@ internal static class Program
 			Logger.Remove(counter);
 		}
 		return new(name, inputs, output, version, objectCount, processedObjectCount, assemblyCount, stopwatch.Elapsed.TotalSeconds,
-			counter.WarningCount, counter.ErrorCount, succeeded, error, rawRecovery?.GetSummary(), collectionExport, assemblyResolution);
+			counter.WarningCount, counter.ErrorCount, succeeded, error, rawRecovery?.GetSummary(), collectionExport, assemblyResolution, workerRun);
 	}
 
 	private sealed class CountingLogger : ILogger
@@ -176,6 +183,12 @@ internal static class Program
 		public string? RawOutputPath { get; private set; }
 		public string ReportPath { get; private set; } = "SystemTester-results.json";
 		public List<string> InputPaths { get; } = [];
+		public ExportSelectionSettings Selection { get; } = new();
+		private string? workerPath, workerDirectory;
+		private int workerTimeout = 300;
+		private int? workerHeap;
+		private bool discardWorkerInputs;
+		public Il2CppWorkerOptions? Worker => workerPath is null ? null : new(workerPath, workerDirectory, workerTimeout, workerHeap, !discardWorkerInputs);
 
 		public static Options Parse(string[] args)
 		{
@@ -188,6 +201,22 @@ internal static class Program
 					case "--output": options.OutputPath = ReadValue(); break;
 					case "--raw-output": options.RawOutputPath = ReadValue(); break;
 					case "--report": options.ReportPath = ReadValue(); break;
+					case "--select-class-id": options.Selection.ClassIds = [.. options.Selection.ClassIds, int.Parse(ReadValue(), System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture)]; break;
+					case "--select-name": options.Selection.Names = [.. options.Selection.Names, ReadValue()]; break;
+					case "--select-path-id": options.Selection.PathIds = [.. options.Selection.PathIds, long.Parse(ReadValue(), System.Globalization.NumberStyles.AllowLeadingSign, System.Globalization.CultureInfo.InvariantCulture)]; break;
+					case "--select-collection": options.Selection.Collections = [.. options.Selection.Collections, ReadValue()]; break;
+					case "--il2cpp-worker": options.workerPath = Path.GetFullPath(ReadValue()); break;
+					case "--il2cpp-worker-dir": options.workerDirectory = Path.GetFullPath(ReadValue()); break;
+					case "--il2cpp-worker-timeout":
+						if (!int.TryParse(ReadValue(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out options.workerTimeout)
+							|| options.workerTimeout is < 1 or > 86400) throw new ArgumentException("Worker timeout must be 1–86400 seconds.");
+						break;
+					case "--il2cpp-worker-max-heap":
+						if (!int.TryParse(ReadValue(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int heap)
+							|| heap is < 64 or > 1048576) throw new ArgumentException("Worker heap limit must be 64–1048576 MiB.");
+						options.workerHeap = heap;
+						break;
+					case "--il2cpp-worker-discard-inputs": options.discardWorkerInputs = true; break;
 					case "--": options.InputPaths.AddRange(args[(i + 1)..]); i = args.Length; break;
 					default:
 						if (args[i].StartsWith("--", StringComparison.Ordinal))
@@ -211,6 +240,8 @@ internal static class Program
 			{
 				throw new ArgumentException("--tests cannot be combined with input paths.");
 			}
+			if (options.workerPath is null && (options.workerDirectory is not null || options.workerTimeout != 300 || options.workerHeap is not null || options.discardWorkerInputs))
+				throw new ArgumentException("Worker directory, timeout, heap and input options require --il2cpp-worker.");
 			return options;
 		}
 	}

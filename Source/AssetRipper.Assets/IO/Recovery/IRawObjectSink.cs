@@ -37,7 +37,11 @@ public sealed record RawCollectionInfo(
 	int SerializedFormat,
 	int Platform,
 	string Endian,
-	bool HasTypeTree);
+	bool HasTypeTree)
+{
+	/// <summary>Types whose type tree is stored outside the source file (SerializedFile format 23+).</summary>
+	public int ExtractedTypeTrees { get; init; }
+}
 
 public sealed record RawObjectInfo(
 	long PathId,
